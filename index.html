@@ -1,0 +1,3340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Smack! — Video Editor</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,wght@0,400;0,500;0,700;1,400&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --orange: #FF5500;
+      --orange-dim: #cc4400;
+      --yellow: #FFD600;
+      --black: #0a0a0a;
+      --surface: #161616;
+      --surface2: #222222;
+      --border: #333333;
+      --text: #f0ede8;
+      --muted: #888;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--black);
+      color: var(--text);
+      font-family: 'DM Sans', sans-serif;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ─── HEADER ─────────────────────────────────── */
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 18px 32px;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+    }
+
+    .logo {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 2.6rem;
+      letter-spacing: 2px;
+      color: var(--orange);
+      line-height: 1;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .logo-bang {
+      color: var(--yellow);
+      display: inline-block;
+      animation: bang-pulse 2s ease-in-out infinite;
+    }
+
+    @keyframes bang-pulse {
+      0%, 100% { transform: scale(1) rotate(0deg); }
+      50% { transform: scale(1.15) rotate(-5deg); }
+    }
+
+    .logo-sub {
+      font-family: 'DM Sans', sans-serif;
+      font-size: 0.75rem;
+      color: var(--muted);
+      font-weight: 500;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+    }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    /* ─── BUTTONS ─────────────────────────────────── */
+    .btn {
+      font-family: 'DM Sans', sans-serif;
+      font-weight: 700;
+      font-size: 0.85rem;
+      border: none;
+      border-radius: 6px;
+      padding: 10px 20px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      letter-spacing: 0.5px;
+    }
+
+    .btn-ghost {
+      background: transparent;
+      color: var(--muted);
+      border: 1px solid var(--border);
+    }
+    .btn-ghost:hover { color: var(--text); border-color: var(--text); }
+
+    .btn-smack {
+      background: var(--orange);
+      color: white;
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 1.1rem;
+      letter-spacing: 1.5px;
+      padding: 10px 28px;
+      position: relative;
+      overflow: hidden;
+    }
+    .btn-smack:hover:not(:disabled) {
+      background: var(--orange-dim);
+      transform: translateY(-1px);
+      box-shadow: 0 6px 20px rgba(255, 85, 0, 0.35);
+    }
+    .btn-smack:active:not(:disabled) { transform: translateY(1px); }
+    .btn-smack:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .btn-primary {
+      background: var(--surface2);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+    .btn-primary:hover { background: #2a2a2a; }
+
+    .btn-danger {
+      background: transparent;
+      color: #ff4444;
+      border: 1px solid #ff4444;
+    }
+    .btn-danger:hover { background: rgba(255,68,68,0.1); }
+
+    /* ─── LAYOUT ─────────────────────────────────── */
+    .app-body {
+      display: grid;
+      grid-template-columns: 320px 1fr;
+      grid-template-rows: 1fr auto;
+      height: calc(100vh - 73px);
+    }
+
+    /* ─── SIDEBAR ─────────────────────────────────── */
+    .sidebar {
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .sidebar-tabs {
+      display: flex;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    .tab {
+      flex: 1;
+      padding: 14px 10px;
+      text-align: center;
+      font-size: 0.78rem;
+      font-weight: 700;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: var(--muted);
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      transition: all 0.15s;
+    }
+    .tab.active { color: var(--orange); border-bottom-color: var(--orange); }
+    .tab:hover:not(.active) { color: var(--text); }
+
+    .tab-panel { display: none; flex: 1; overflow-y: auto; }
+    .tab-panel.active { display: flex; flex-direction: column; }
+
+    /* ─── CLIPS PANEL ─────────────────────────────── */
+    .drop-zone {
+      margin: 16px;
+      border: 2px dashed var(--border);
+      border-radius: 10px;
+      padding: 28px 20px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+      background: var(--surface);
+    }
+    .drop-zone:hover, .drop-zone.dragging {
+      border-color: var(--orange);
+      background: rgba(255,85,0,0.05);
+    }
+    .drop-zone-icon { font-size: 2rem; margin-bottom: 8px; }
+    .drop-zone-text { font-size: 0.85rem; color: var(--muted); line-height: 1.5; }
+    .drop-zone-text strong { color: var(--orange); cursor: pointer; }
+
+    .clip-list {
+      padding: 0 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      flex: 1;
+    }
+
+    .clip-item {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 12px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      cursor: grab;
+      transition: all 0.15s;
+      user-select: none;
+    }
+    .clip-item:hover { border-color: var(--orange); }
+    .clip-item.selected { border-color: var(--orange); background: rgba(255,85,0,0.08); }
+    .clip-item:active { cursor: grabbing; }
+
+    .clip-thumb {
+      width: 56px;
+      height: 36px;
+      background: var(--black);
+      border-radius: 4px;
+      overflow: hidden;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.2rem;
+    }
+    .clip-thumb video, .clip-thumb img {
+      width: 100%; height: 100%; object-fit: cover;
+    }
+
+    .clip-info { flex: 1; min-width: 0; }
+    .clip-name {
+      font-size: 0.82rem;
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      color: var(--text);
+    }
+    .clip-meta { font-size: 0.72rem; color: var(--muted); margin-top: 2px; }
+
+    .clip-remove {
+      background: none;
+      border: none;
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 1rem;
+      padding: 4px;
+      border-radius: 4px;
+      line-height: 1;
+      flex-shrink: 0;
+      transition: all 0.1s;
+    }
+    .clip-remove:hover { color: #ff4444; background: rgba(255,68,68,0.1); }
+
+    /* ─── TEXT PANEL ─────────────────────────────── */
+    .panel-section {
+      padding: 16px;
+      border-bottom: 1px solid var(--border);
+    }
+    .panel-label {
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 10px;
+    }
+
+    .text-input-field {
+      width: 100%;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 0.9rem;
+      padding: 10px 12px;
+      transition: border-color 0.15s;
+      resize: none;
+    }
+    .text-input-field:focus { outline: none; border-color: var(--orange); }
+
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 8px;
+    }
+
+    .form-group label {
+      display: block;
+      font-size: 0.72rem;
+      color: var(--muted);
+      margin-bottom: 4px;
+      font-weight: 500;
+    }
+
+    .form-control {
+      width: 100%;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 0.85rem;
+      padding: 8px 10px;
+    }
+    .form-control:focus { outline: none; border-color: var(--orange); }
+
+    .color-row {
+      display: flex;
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .color-swatch {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      cursor: pointer;
+      border: 2px solid transparent;
+      transition: all 0.15s;
+    }
+    .color-swatch.active { border-color: white; transform: scale(1.15); }
+
+    .text-overlay-list {
+      padding: 0 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      flex: 1;
+      overflow-y: auto;
+    }
+
+    .overlay-item {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 8px 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      font-size: 0.82rem;
+      transition: all 0.15s;
+    }
+    .overlay-item:hover { border-color: var(--orange); }
+    .overlay-item .oi-text { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .overlay-item .oi-time { font-size: 0.72rem; color: var(--muted); flex-shrink: 0; }
+
+    /* ─── AUDIO PANEL ─────────────────────────────── */
+    .audio-toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border);
+    }
+    .audio-toggle-label { font-size: 0.9rem; font-weight: 500; }
+    .audio-toggle-sub { font-size: 0.75rem; color: var(--muted); margin-top: 2px; }
+
+    .toggle {
+      width: 44px;
+      height: 24px;
+      background: var(--border);
+      border-radius: 12px;
+      cursor: pointer;
+      position: relative;
+      transition: background 0.2s;
+      flex-shrink: 0;
+    }
+    .toggle.on { background: var(--orange); }
+    .toggle::after {
+      content: '';
+      position: absolute;
+      top: 3px;
+      left: 3px;
+      width: 18px;
+      height: 18px;
+      background: white;
+      border-radius: 50%;
+      transition: transform 0.2s;
+    }
+    .toggle.on::after { transform: translateX(20px); }
+
+    .volume-row {
+      padding: 14px 16px;
+    }
+    input[type="range"] {
+      width: 100%;
+      accent-color: var(--orange);
+      cursor: pointer;
+    }
+
+    /* ─── PREVIEW AREA ────────────────────────────── */
+    .preview-area {
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .preview-container {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #050505;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .preview-placeholder {
+      text-align: center;
+      color: var(--muted);
+    }
+    .preview-placeholder-icon {
+      font-size: 3.5rem;
+      margin-bottom: 12px;
+      opacity: 0.4;
+    }
+    .preview-placeholder-text {
+      font-size: 0.9rem;
+      font-family: 'Bebas Neue', sans-serif;
+      letter-spacing: 2px;
+      font-size: 1.1rem;
+    }
+
+    #previewVideo {
+      max-width: 100%;
+      max-height: 100%;
+      width: auto;
+      height: 100%;
+      display: none;
+    }
+
+    /* Selection in/out bar shown below the preview video */
+    .preview-selection-bar {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 6px;
+      background: rgba(255,255,255,0.06);
+      pointer-events: none;
+      z-index: 5;
+    }
+
+    .preview-selection-range {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      background: rgba(80, 180, 255, 0.65);
+      transition: left 0.05s, width 0.05s;
+    }
+
+    .preview-playhead-tick {
+      position: absolute;
+      top: -3px;
+      width: 3px;
+      bottom: 0;
+      background: var(--orange);
+      transition: left 0.05s;
+    }
+
+    /* Dim overlay on the video when a selection is active */
+    .preview-selection-vignette {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 4;
+      display: none;
+      box-shadow: inset 0 0 0 3px rgba(80, 180, 255, 0.5);
+      border-radius: 2px;
+    }
+    .preview-selection-vignette.active { display: block; }
+
+    .text-overlay-canvas {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      pointer-events: none;
+    }
+
+    /* ─── CUSTOM PLAYER BAR ─────────────────────────── */
+    .player-bar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 16px;
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      flex-shrink: 0;
+      height: 48px;
+    }
+
+    .player-btn {
+      background: none;
+      border: none;
+      color: var(--text);
+      cursor: pointer;
+      padding: 4px 6px;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.12s, color 0.12s;
+      flex-shrink: 0;
+    }
+    .player-btn:hover { background: var(--surface2); color: var(--orange); }
+    .player-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+    .player-time {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 0.85rem;
+      letter-spacing: 1.5px;
+      color: var(--orange);
+      white-space: nowrap;
+      flex-shrink: 0;
+      min-width: 44px;
+    }
+    .player-dur { color: var(--muted); text-align: right; }
+
+    .player-scrub-track {
+      flex: 1;
+      height: 5px;
+      background: var(--surface2);
+      border-radius: 3px;
+      position: relative;
+      cursor: pointer;
+      border: 1px solid var(--border);
+    }
+    .player-scrub-track:hover { height: 7px; margin-top: -1px; }
+    .player-scrub-track:hover .player-scrub-thumb { opacity: 1; transform: translateX(-50%) scale(1); }
+
+    .player-scrub-fill {
+      position: absolute;
+      left: 0; top: 0; bottom: 0;
+      background: var(--orange);
+      border-radius: 3px;
+      width: 0%;
+      pointer-events: none;
+    }
+
+    /* Blue tint over the selection region */
+    .player-scrub-sel {
+      position: absolute;
+      top: -1px; bottom: -1px;
+      background: rgba(80, 180, 255, 0.45);
+      border-left:  1px solid rgba(80, 180, 255, 0.8);
+      border-right: 1px solid rgba(80, 180, 255, 0.8);
+      pointer-events: none;
+      border-radius: 1px;
+    }
+
+    .player-scrub-thumb {
+      position: absolute;
+      top: 50%;
+      transform: translateX(-50%) translateY(-50%) scale(0.6);
+      width: 14px; height: 14px;
+      background: white;
+      border-radius: 50%;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.5);
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.12s, transform 0.12s;
+      left: 0%;
+    }
+
+    /* ─── TIMELINE ────────────────────────────────── */
+    .timeline-container {
+      height: 210px;
+      border-top: 1px solid var(--border);
+      background: var(--surface);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .timeline-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 16px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    .timeline-controls {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .tl-btn {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 6px;
+      padding: 6px 14px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .tl-btn:hover { border-color: var(--orange); color: var(--orange); }
+    .tl-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+    .tl-btn.active { background: rgba(255,85,0,0.15); border-color: var(--orange); color: var(--orange); }
+
+    .tl-btn kbd {
+      display: inline-block;
+      font-family: 'DM Sans', monospace;
+      font-size: 0.65rem;
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 3px;
+      padding: 1px 4px;
+      margin-left: 3px;
+      line-height: 1.4;
+      vertical-align: middle;
+      color: var(--muted);
+    }
+
+    .timecode {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 1rem;
+      letter-spacing: 2px;
+      color: var(--orange);
+    }
+
+    .timeline-scroll {
+      flex: 1;
+      overflow-x: auto;
+      overflow-y: hidden;
+      position: relative;
+    }
+
+    .timeline-track {
+      height: 100%;
+      min-width: 100%;
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      position: relative;
+      cursor: text;
+    }
+
+    /* ─── PLAYHEAD ────────────────────────────────── */
+    .playhead {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 2px;
+      background: var(--orange);
+      z-index: 10;
+      pointer-events: none;
+      transform: translateX(-1px);
+      box-shadow: 0 0 6px rgba(255,85,0,0.7);
+    }
+
+    .playhead::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 0;
+      height: 0;
+      border-left: 6px solid transparent;
+      border-right: 6px solid transparent;
+      border-top: 8px solid var(--orange);
+    }
+
+    .playhead-time {
+      position: absolute;
+      top: -2px;
+      left: 50%;
+      transform: translateX(-50%) translateY(-100%);
+      background: var(--orange);
+      color: white;
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 0.7rem;
+      letter-spacing: 1px;
+      padding: 1px 5px;
+      border-radius: 3px;
+      white-space: nowrap;
+      pointer-events: none;
+    }
+
+    /* ─── SELECTION REGION ────────────────────────── */
+    .selection-region {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      background: rgba(80, 180, 255, 0.15);
+      border-left:  2px solid rgba(80, 180, 255, 0.75);
+      border-right: 2px solid rgba(80, 180, 255, 0.75);
+      pointer-events: none;
+      z-index: 5;
+      display: none;
+    }
+
+    .sel-label {
+      position: absolute;
+      top: 3px;
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 0.62rem;
+      letter-spacing: 1px;
+      color: rgba(140, 210, 255, 0.95);
+      background: rgba(0, 0, 0, 0.65);
+      padding: 1px 5px;
+      border-radius: 3px;
+      white-space: nowrap;
+    }
+    .sel-label.start { left:  4px; }
+    .sel-label.end   { right: 4px; transform: translateX(100%); }
+
+    .sel-duration {
+      position: absolute;
+      bottom: 4px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 0.62rem;
+      letter-spacing: 1px;
+      color: rgba(140, 210, 255, 0.75);
+      white-space: nowrap;
+      pointer-events: none;
+    }
+
+    /* Waveform tinted inside selection */
+    .tl-clip.in-selection .tl-clip-waveform { opacity: 1; }
+
+    /* Cursor changes when hovering the timeline in select mode */
+    .timeline-track { cursor: crosshair; }
+    .timeline-track .trim-handle { cursor: col-resize; }
+
+    .tl-btn.destructive {
+      background: rgba(255, 68, 68, 0.12);
+      border-color: rgba(255, 68, 68, 0.5);
+      color: #ff8080;
+    }
+    .tl-btn.destructive:hover {
+      background: rgba(255, 68, 68, 0.25);
+      border-color: #ff4444;
+      color: #ffaaaa;
+    }
+
+    .tl-btn.active-feature {
+      background: rgba(120, 230, 130, 0.15);
+      border-color: rgba(100, 210, 110, 0.7);
+      color: #90e898;
+    }
+    .tl-btn.active-feature:hover {
+      background: rgba(120, 230, 130, 0.28);
+      color: #b0f4b8;
+    }
+
+    /* Denoise strength popup — opens upward above the Denoise button */
+    .denoise-popup {
+      position: absolute;
+      bottom: calc(100% + 6px);
+      left: 0;
+      z-index: 50;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px;
+      display: none;
+      flex-direction: column;
+      gap: 6px;
+      min-width: 170px;
+      box-shadow: 0 -4px 24px rgba(0,0,0,0.55);
+      animation: popup-in 0.12s ease;
+    }
+    .denoise-popup.open { display: flex; }
+    @keyframes popup-in {
+      from { opacity: 0; transform: translateY(4px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .denoise-popup-label {
+      font-size: 0.68rem;
+      font-weight: 700;
+      letter-spacing: 1.2px;
+      text-transform: uppercase;
+      color: var(--muted);
+      padding: 0 2px 4px;
+      border-bottom: 1px solid var(--border);
+    }
+    .strength-btn {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 0.82rem;
+      font-weight: 600;
+      padding: 8px 12px;
+      cursor: pointer;
+      transition: all 0.12s;
+      text-align: left;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .strength-btn:hover { border-color: var(--orange); color: var(--orange); }
+    .strength-btn .strength-icon { font-size: 1rem; width: 20px; text-align: center; }
+    .strength-btn .strength-desc { font-size: 0.7rem; color: var(--muted); font-weight: 400; display: block; margin-top: 1px; }
+
+    /* Denoise badge on clip block */
+    .tl-clip-denoise-badge {
+      position: absolute;
+      top: 4px;
+      right: 26px;
+      background: rgba(100, 210, 110, 0.85);
+      color: #0a1f0c;
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 0.55rem;
+      letter-spacing: 1px;
+      padding: 1px 5px;
+      border-radius: 3px;
+      pointer-events: none;
+      z-index: 3;
+    }
+
+    .tl-clip {
+      cursor: crosshair;
+    }
+
+    .timeline-empty {
+      color: var(--muted);
+      font-size: 0.8rem;
+      font-style: italic;
+    }
+
+    .tl-clip {
+      height: 96px;
+      background: linear-gradient(180deg, #12141e 0%, #0d0f1a 100%);
+      border: 1px solid #2a4a7a;
+      border-radius: 6px;
+      position: relative;
+      cursor: text;
+      transition: border-color 0.15s, box-shadow 0.15s;
+      overflow: hidden;
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
+      padding: 4px 8px 0;
+    }
+
+    .tl-clip-waveform {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      opacity: 1;
+      pointer-events: none;
+    }
+
+    .tl-clip-waveform.loading {
+      opacity: 0.35;
+      animation: waveform-pulse 1.4s ease-in-out infinite;
+    }
+
+    @keyframes waveform-pulse {
+      0%, 100% { opacity: 0.25; }
+      50%       { opacity: 0.5; }
+    }
+
+    .tl-clip.active {
+      border-color: var(--orange);
+      box-shadow: 0 0 0 1px var(--orange);
+    }
+
+    .tl-clip-name {
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: #7eb8f7;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      position: relative;
+      z-index: 2;
+    }
+
+    .tl-clip-duration {
+      font-size: 0.68rem;
+      color: var(--muted);
+      position: relative;
+      z-index: 2;
+    }
+
+    .tl-clip-wave {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 20px;
+      opacity: 0.2;
+    }
+
+    .trim-handle {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 8px;
+      background: var(--orange);
+      cursor: col-resize;
+      opacity: 0;
+      transition: opacity 0.15s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .trim-handle::after {
+      content: '|||';
+      font-size: 7px;
+      color: white;
+      letter-spacing: -1px;
+    }
+    .tl-clip:hover .trim-handle,
+    .tl-clip.active .trim-handle { opacity: 1; }
+    .trim-handle.left { left: 0; border-radius: 6px 0 0 6px; }
+    .trim-handle.right { right: 0; border-radius: 0 6px 6px 0; }
+
+    /* ─── TRIM MODAL ──────────────────────────────── */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.75);
+      z-index: 100;
+      display: none;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal-backdrop.open { display: flex; }
+
+    .modal {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      width: 580px;
+      max-width: 95vw;
+      overflow: hidden;
+    }
+
+    .modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 18px 24px;
+      border-bottom: 1px solid var(--border);
+    }
+    .modal-title {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 1.5rem;
+      letter-spacing: 2px;
+      color: var(--orange);
+    }
+    .modal-close {
+      background: none;
+      border: none;
+      color: var(--muted);
+      font-size: 1.4rem;
+      cursor: pointer;
+      line-height: 1;
+      padding: 4px;
+    }
+    .modal-close:hover { color: var(--text); }
+
+    .modal-body { padding: 24px; }
+
+    #trimVideo {
+      width: 100%;
+      border-radius: 8px;
+      background: #000;
+      margin-bottom: 16px;
+    }
+
+    .trim-bar {
+      position: relative;
+      height: 48px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      margin: 8px 0 16px;
+      overflow: hidden;
+    }
+
+    .trim-selection {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      background: rgba(255,85,0,0.25);
+      border-left: 3px solid var(--orange);
+      border-right: 3px solid var(--orange);
+    }
+
+    .trim-labels {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.78rem;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+
+    .trim-inputs {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .modal-footer {
+      padding: 16px 24px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+    }
+
+    /* ─── EXPORT MODAL ────────────────────────────── */
+    .export-modal .modal { width: 460px; }
+
+    .export-option {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 14px 16px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      cursor: pointer;
+      margin-bottom: 10px;
+      transition: all 0.15s;
+    }
+    .export-option:hover, .export-option.selected {
+      border-color: var(--orange);
+      background: rgba(255,85,0,0.07);
+    }
+    .export-option-icon { font-size: 1.5rem; }
+    .export-option-info { flex: 1; }
+    .export-option-name { font-weight: 600; font-size: 0.9rem; }
+    .export-option-desc { font-size: 0.78rem; color: var(--muted); margin-top: 2px; }
+    .export-option-check {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      border: 2px solid var(--border);
+      transition: all 0.15s;
+    }
+    .export-option.selected .export-option-check {
+      border-color: var(--orange);
+      background: var(--orange);
+    }
+
+    /* ─── PROGRESS ────────────────────────────────── */
+    .progress-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.85);
+      z-index: 200;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 20px;
+    }
+    .progress-overlay.open { display: flex; }
+
+    .progress-title {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 3rem;
+      letter-spacing: 4px;
+      color: var(--orange);
+      animation: progress-glow 1.5s ease-in-out infinite;
+    }
+    @keyframes progress-glow {
+      0%, 100% { text-shadow: 0 0 20px rgba(255,85,0,0.5); }
+      50% { text-shadow: 0 0 40px rgba(255,85,0,0.9), 0 0 80px rgba(255,85,0,0.3); }
+    }
+
+    .progress-bar-track {
+      width: 360px;
+      height: 8px;
+      background: var(--surface2);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .progress-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--orange), var(--yellow));
+      border-radius: 4px;
+      transition: width 0.3s ease;
+      width: 0%;
+    }
+
+    .progress-message {
+      font-size: 0.9rem;
+      color: var(--muted);
+    }
+
+    /* ─── TOAST ───────────────────────────────────── */
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px 18px;
+      font-size: 0.88rem;
+      z-index: 300;
+      transform: translateY(80px);
+      opacity: 0;
+      transition: all 0.3s ease;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      max-width: 320px;
+    }
+    .toast.show { transform: translateY(0); opacity: 1; }
+    .toast.success { border-color: #22c55e; }
+    .toast.error { border-color: #ef4444; }
+    .toast.info { border-color: var(--orange); }
+
+    /* ─── SCROLLBAR ───────────────────────────────── */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+
+    /* ─── UTIL ────────────────────────────────────── */
+    .hidden { display: none !important; }
+    .add-btn {
+      background: transparent;
+      border: 1px dashed var(--border);
+      border-radius: 6px;
+      color: var(--muted);
+      cursor: pointer;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 0.82rem;
+      padding: 8px 14px;
+      width: 100%;
+      margin: 8px 0;
+      transition: all 0.15s;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      justify-content: center;
+    }
+    .add-btn:hover { border-color: var(--orange); color: var(--orange); }
+  </style>
+</head>
+<body>
+
+  <!-- HEADER -->
+  <header>
+    <div>
+      <div class="logo">SMACK<span class="logo-bang">!</span></div>
+      <div class="logo-sub">Smack your videos together</div>
+    </div>
+    <div class="header-right">
+      <button class="btn btn-ghost" onclick="clearAll()">New Project</button>
+      <button class="btn btn-smack" id="smackBtn" disabled onclick="openExportModal()">⚡ SMACK IT</button>
+    </div>
+  </header>
+
+  <!-- MAIN BODY -->
+  <div class="app-body">
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+      <div class="sidebar-tabs">
+        <div class="tab active" data-tab="clips">🎬 Clips</div>
+        <div class="tab" data-tab="text">✏️ Text</div>
+        <div class="tab" data-tab="audio">🔊 Audio</div>
+      </div>
+
+      <!-- CLIPS TAB -->
+      <div class="tab-panel active" id="panel-clips">
+        <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
+          <div class="drop-zone-icon">📁</div>
+          <div class="drop-zone-text">
+            <strong>Choose files</strong> or drop here<br/>
+            MP4, MOV, AVI, WebM
+          </div>
+        </div>
+        <input type="file" id="fileInput" multiple accept="video/*" class="hidden" />
+        <div class="clip-list" id="clipList">
+          <div id="clipListEmpty" style="color:var(--muted);font-size:0.82rem;padding:8px 4px;text-align:center;">
+            No clips yet — add some above!
+          </div>
+        </div>
+      </div>
+
+      <!-- TEXT TAB -->
+      <div class="tab-panel" id="panel-text">
+        <div class="panel-section">
+          <div class="panel-label">Add Text Overlay</div>
+          <textarea class="text-input-field" id="textInput" rows="2" placeholder="Type your text..."></textarea>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Position</label>
+              <select class="form-control" id="textPosition">
+                <option value="top">Top</option>
+                <option value="center">Center</option>
+                <option value="bottom" selected>Bottom</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Size</label>
+              <select class="form-control" id="textSize">
+                <option value="small">Small</option>
+                <option value="medium" selected>Medium</option>
+                <option value="large">Large</option>
+                <option value="xlarge">X-Large</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Start (sec)</label>
+              <input class="form-control" type="number" id="textStart" min="0" value="0" step="0.5" />
+            </div>
+            <div class="form-group">
+              <label>End (sec)</label>
+              <input class="form-control" type="number" id="textEnd" min="0" value="5" step="0.5" />
+            </div>
+          </div>
+          <div style="margin-top:10px;">
+            <div class="panel-label" style="margin-bottom:6px;">Color</div>
+            <div class="color-row" id="colorPicker">
+              <div class="color-swatch active" data-color="#FFFFFF" style="background:#FFFFFF;"></div>
+              <div class="color-swatch" data-color="#FFD600" style="background:#FFD600;"></div>
+              <div class="color-swatch" data-color="#FF5500" style="background:#FF5500;"></div>
+              <div class="color-swatch" data-color="#00D4FF" style="background:#00D4FF;"></div>
+              <div class="color-swatch" data-color="#FF69B4" style="background:#FF69B4;"></div>
+              <div class="color-swatch" data-color="#44FF44" style="background:#44FF44;"></div>
+            </div>
+          </div>
+          <button class="add-btn" style="margin-top:14px;" onclick="addTextOverlay()">＋ Add to Timeline</button>
+        </div>
+
+        <div class="text-overlay-list" id="overlayList">
+          <div id="overlayListEmpty" style="color:var(--muted);font-size:0.82rem;padding:8px 4px;text-align:center;margin-top:8px;">
+            No text overlays yet.
+          </div>
+        </div>
+      </div>
+
+      <!-- AUDIO TAB -->
+      <div class="tab-panel" id="panel-audio">
+        <div class="audio-toggle-row">
+          <div>
+            <div class="audio-toggle-label">Original Audio</div>
+            <div class="audio-toggle-sub">Keep the sound from your clips</div>
+          </div>
+          <div class="toggle on" id="audioToggle" onclick="toggleAudio()"></div>
+        </div>
+        <div class="volume-row">
+          <label style="font-size:0.78rem;color:var(--muted);display:block;margin-bottom:6px;">Volume</label>
+          <input type="range" id="volumeSlider" min="0" max="200" value="100" />
+          <div style="display:flex;justify-content:space-between;font-size:0.72rem;color:var(--muted);margin-top:4px;">
+            <span>Mute</span><span id="volumeLabel">100%</span><span>200%</span>
+          </div>
+        </div>
+        <div class="panel-section">
+          <div class="panel-label">Background Music</div>
+          <div style="color:var(--muted);font-size:0.82rem;line-height:1.5;margin-bottom:10px;">
+            Add a music track that plays over your entire video.
+          </div>
+          <button class="add-btn" onclick="document.getElementById('musicInput').click()">
+            🎵 Choose Music File
+          </button>
+          <input type="file" id="musicInput" accept="audio/*" class="hidden" onchange="loadMusic(this)" />
+          <div id="musicInfo" class="hidden" style="font-size:0.82rem;color:var(--muted);margin-top:8px;padding:8px;background:var(--surface2);border-radius:6px;"></div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- RIGHT SIDE: PREVIEW + TIMELINE -->
+    <div class="preview-area">
+
+      <!-- VIDEO PREVIEW -->
+      <div class="preview-container" id="previewContainer">
+        <div class="preview-placeholder" id="previewPlaceholder">
+          <div class="preview-placeholder-icon">🎬</div>
+          <div class="preview-placeholder-text">Add clips to get started</div>
+        </div>
+        <video id="previewVideo"></video>
+        <canvas class="text-overlay-canvas" id="overlayCanvas"></canvas>
+        <!-- Selection overlay -->
+        <div class="preview-selection-vignette" id="previewVignette"></div>
+        <div class="preview-selection-bar" id="previewSelBar">
+          <div class="preview-selection-range" id="previewSelRange" style="display:none;"></div>
+          <div class="preview-playhead-tick"   id="previewPhTick"  style="left:0%;"></div>
+        </div>
+      </div><!-- /.preview-container -->
+
+      <!-- CUSTOM PLAYER BAR -->
+      <div class="player-bar" id="playerBar">
+        <button class="player-btn" id="playerPlayBtn" onclick="playPreview()" disabled>
+          <svg id="playerPlayIcon" viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M8 5v14l11-7z"/></svg>
+          <svg id="playerPauseIcon" viewBox="0 0 24 24" fill="currentColor" width="16" height="16" style="display:none"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+        </button>
+
+        <div class="player-time" id="playerCurrentTime">0:00.0</div>
+
+        <!-- Scrub track -->
+        <div class="player-scrub-track" id="playerScrubTrack">
+          <!-- Greyed-out regions outside trim (unused here — whole bar IS the trim) -->
+          <div class="player-scrub-fill"    id="playerScrubFill"   ></div>
+          <div class="player-scrub-sel"     id="playerScrubSel"    style="display:none;"></div>
+          <div class="player-scrub-thumb"   id="playerScrubThumb"  ></div>
+        </div>
+
+        <div class="player-time player-dur" id="playerDuration">0:00.0</div>
+
+        <!-- Volume -->
+        <button class="player-btn player-vol-btn" id="playerVolBtn" onclick="toggleMute()">🔊</button>
+      </div>
+      <div class="timeline-container">
+        <div class="timeline-header">
+          <div class="timeline-controls">
+            <button class="tl-btn" onclick="playPreview()" id="playBtn" disabled>▶ Play</button>
+            <button class="tl-btn" onclick="openTrimModal()" id="trimBtn" disabled>✂️ Trim</button>
+            <button class="tl-btn" onclick="cutAtPlayhead()" id="cutBtn" disabled>🔪 Cut</button>
+            <div style="position:relative;">
+              <button class="tl-btn" onclick="toggleNoiseReduction()" id="denoiseBtn" disabled title="Select a region of pure noise then click Learn">🎙 Denoise</button>
+              <div class="denoise-popup" id="denoisePopup">
+                <div class="denoise-popup-label">Reduction strength</div>
+                <button class="strength-btn" onclick="pickDenoiseStrength('light')">
+                  <span class="strength-icon">🌤</span>
+                  <span><span>Light</span><span class="strength-desc">Subtle — preserves voice naturalness</span></span>
+                </button>
+                <button class="strength-btn" onclick="pickDenoiseStrength('moderate')">
+                  <span class="strength-icon">🎙</span>
+                  <span><span>Moderate</span><span class="strength-desc">Balanced noise removal</span></span>
+                </button>
+                <button class="strength-btn" onclick="pickDenoiseStrength('heavy')">
+                  <span class="strength-icon">🔇</span>
+                  <span><span>Heavy</span><span class="strength-desc">Maximum removal, may affect voice</span></span>
+                </button>
+              </div>
+            </div>
+            <button class="tl-btn destructive" onclick="deleteSelection()" id="delSelBtn" style="display:none;">🗑 Delete Region <kbd>X</kbd></button>
+            <button class="tl-btn" onclick="moveClipUp()" id="upBtn" disabled>← Move</button>
+            <button class="tl-btn" onclick="moveClipDown()" id="downBtn" disabled>Move →</button>
+            <button class="tl-btn" onclick="zoomIn()" title="Zoom In (T)">🔍+ <kbd>T</kbd></button>
+            <button class="tl-btn" onclick="zoomOut()" title="Zoom Out (R)">🔍− <kbd>R</kbd></button>
+          </div>
+          <div class="timecode" id="timecode">00:00:00</div>
+        </div>
+        <div class="timeline-scroll" id="timelineScroll">
+          <div class="timeline-track" id="timelineTrack">
+            <div class="playhead" id="playhead" style="display:none;">
+              <div class="playhead-time" id="playheadTime">0:00.0</div>
+            </div>
+            <div class="selection-region" id="selectionRegion">
+              <div class="sel-label start" id="selLabelStart"></div>
+              <div class="sel-label end"   id="selLabelEnd"></div>
+              <div class="sel-duration"    id="selDuration"></div>
+            </div>
+            <div class="timeline-empty" id="timelineEmpty">Add clips from the sidebar to build your timeline →</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- TRIM MODAL -->
+  <div class="modal-backdrop" id="trimModal">
+    <div class="modal">
+      <div class="modal-header">
+        <span class="modal-title">✂️ TRIM CLIP</span>
+        <button class="modal-close" onclick="closeTrimModal()">✕</button>
+      </div>
+      <div class="modal-body">
+        <video id="trimVideo" controls></video>
+        <div style="font-size:0.82rem;color:var(--muted);margin-bottom:8px;">Drag the handles or set times below:</div>
+        <div class="trim-bar" id="trimBar">
+          <div class="trim-selection" id="trimSelection"></div>
+        </div>
+        <div class="trim-labels">
+          <span id="trimBarStart">0:00</span>
+          <span id="trimBarEnd">0:00</span>
+        </div>
+        <div class="trim-inputs">
+          <div class="form-group">
+            <label>Start Time (seconds)</label>
+            <input class="form-control" type="number" id="trimStartInput" min="0" step="0.1" value="0" />
+          </div>
+          <div class="form-group">
+            <label>End Time (seconds)</label>
+            <input class="form-control" type="number" id="trimEndInput" min="0" step="0.1" value="0" />
+          </div>
+        </div>
+        <div style="font-size:0.8rem;color:var(--muted);">
+          Selected: <span id="trimDuration" style="color:var(--orange);font-weight:700;">0s</span>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="closeTrimModal()">Cancel</button>
+        <button class="btn btn-smack" onclick="applyTrim()">Apply Trim</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- EXPORT MODAL -->
+  <div class="modal-backdrop export-modal" id="exportModal">
+    <div class="modal">
+      <div class="modal-header">
+        <span class="modal-title">⚡ SMACK IT TOGETHER</span>
+        <button class="modal-close" onclick="closeExportModal()">✕</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size:0.88rem;color:var(--muted);margin-bottom:16px;">
+          Choose your export quality. Your video will be processed entirely in your browser — no uploads!
+        </p>
+        <div class="export-option selected" data-quality="medium" onclick="selectQuality(this)">
+          <div class="export-option-icon">📱</div>
+          <div class="export-option-info">
+            <div class="export-option-name">Social Media</div>
+            <div class="export-option-desc">720p — great for sharing with family &amp; friends</div>
+          </div>
+          <div class="export-option-check"></div>
+        </div>
+        <div class="export-option" data-quality="high" onclick="selectQuality(this)">
+          <div class="export-option-icon">🖥️</div>
+          <div class="export-option-info">
+            <div class="export-option-name">High Quality</div>
+            <div class="export-option-desc">1080p — best for big screens or archiving</div>
+          </div>
+          <div class="export-option-check"></div>
+        </div>
+        <div class="export-option" data-quality="small" onclick="selectQuality(this)">
+          <div class="export-option-icon">✉️</div>
+          <div class="export-option-info">
+            <div class="export-option-name">Small File</div>
+            <div class="export-option-desc">480p — easier to send via email or message</div>
+          </div>
+          <div class="export-option-check"></div>
+        </div>
+        <div id="ffmpegWarning" style="margin-top:14px;padding:12px;background:rgba(255,214,0,0.08);border:1px solid rgba(255,214,0,0.3);border-radius:8px;font-size:0.8rem;color:var(--yellow);display:none;">
+          ⚠️ <strong>Note:</strong> FFmpeg.wasm requires the page to be served over a local or web server with SharedArrayBuffer enabled. Processing may take a moment depending on video length.
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="closeExportModal()">Cancel</button>
+        <button class="btn btn-smack" onclick="startExport()">⚡ SMACK IT!</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- PROGRESS OVERLAY -->
+  <div class="progress-overlay" id="progressOverlay">
+    <div class="progress-title">SMACKING...</div>
+    <div class="progress-bar-track">
+      <div class="progress-bar-fill" id="progressFill"></div>
+    </div>
+    <div class="progress-message" id="progressMessage">Preparing your clips...</div>
+  </div>
+
+  <!-- TOAST -->
+  <div class="toast" id="toast"></div>
+
+  <!-- FFMPEG (loaded on demand) -->
+  <script>
+    // ─── STATE ────────────────────────────────────────────────────────────────
+    const state = {
+      clips: [],            // { id, file, name, duration, trimStart, trimEnd, url }
+      overlays: [],         // { id, text, position, size, color, start, end }
+      selectedClip: null,
+      audioEnabled: true,
+      volume: 100,
+      musicFile: null,
+      exportQuality: 'medium',
+      selectedColor: '#FFFFFF',
+      ffmpegLoaded: false,
+      timelineScale: 80,
+      playheadGlobalTime: 0,
+      history: [],
+      selection: null,     // { startTime, endTime } in global timeline seconds
+    };
+
+    let ffmpeg = null;
+
+    // ─── UNDO ──────────────────────────────────────────────────────────────────
+    function pushHistory() {
+      // Deep-clone clips (preserve file/url references, clone scalar fields)
+      const snapshot = state.clips.map(c => ({ ...c }));
+      state.history.push(snapshot);
+      if (state.history.length > 50) state.history.shift(); // cap at 50
+    }
+
+    function undo() {
+      if (state.history.length === 0) {
+        showToast('Nothing to undo', 'info');
+        return;
+      }
+      const prev = state.history.pop();
+      state.clips = prev;
+
+      // Keep selectedClip in sync
+      if (state.selectedClip) {
+        state.selectedClip = state.clips.find(c => c.id === state.selectedClip.id) || null;
+      }
+
+      renderClipList();
+      renderTimeline();
+      updateSmackBtn();
+      updateToolbarBtns();
+      showToast('↩ Undone', 'info');
+    }
+
+    // ─── WAVEFORM ─────────────────────────────────────────────────────────────
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+    async function generateWaveform(clip) {
+      try {
+        // Use cached AudioBuffer if available (avoids re-decoding after cuts/trims)
+        let audioBuffer = clip.audioBuffer;
+        if (!audioBuffer) {
+          const arrayBuffer = await clip.file.arrayBuffer();
+          audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+        }
+
+        const numChannels = audioBuffer.numberOfChannels;
+        const totalLength = audioBuffer.length;
+        const sr          = audioBuffer.sampleRate;
+
+        const mono = new Float32Array(totalLength);
+        for (let ch = 0; ch < numChannels; ch++) {
+          const data = audioBuffer.getChannelData(ch);
+          for (let i = 0; i < totalLength; i++) mono[i] += data[i] / numChannels;
+        }
+
+        // ── Only sample the TRIMMED region ────────────────────────────────────
+        // This is the critical fix: peaks must map to trimStart→trimEnd only,
+        // otherwise a 3-min file trimmed to 0:30–1:00 shows the wrong section.
+        const sampleStart = Math.max(0, Math.floor(clip.trimStart * sr));
+        const sampleEnd   = Math.min(totalLength, Math.ceil(clip.trimEnd * sr));
+        const regionLen   = sampleEnd - sampleStart;
+
+        const SAMPLES   = 4000;
+        const blockSize = Math.max(1, regionLen / SAMPLES);
+        const peaksMax  = new Float32Array(SAMPLES);
+        const peaksMin  = new Float32Array(SAMPLES);
+
+        for (let i = 0; i < SAMPLES; i++) {
+          const start = sampleStart + Math.floor(i * blockSize);
+          const end   = Math.min(sampleEnd, start + Math.ceil(blockSize));
+          let max = 0, min = 0;
+          for (let j = start; j < end; j++) {
+            const v = mono[j];
+            if (v > max) max = v;
+            if (v < min) min = v;
+          }
+          peaksMax[i] = max;
+          peaksMin[i] = min;
+        }
+
+        // Normalise — loudest point fills the height
+        let loudest = 0;
+        for (let i = 0; i < SAMPLES; i++) {
+          if (peaksMax[i]  > loudest) loudest = peaksMax[i];
+          if (-peaksMin[i] > loudest) loudest = -peaksMin[i];
+        }
+        const norm = loudest > 0.001 ? 1 / loudest : 1;
+        for (let i = 0; i < SAMPLES; i++) {
+          peaksMax[i] *= norm;
+          peaksMin[i] *= norm;
+        }
+
+        clip.waveformPeaks    = peaksMax;
+        clip.waveformPeaksMin = peaksMin;
+        clip.audioBuffer      = audioBuffer;
+        drawWaveformOnClipEl(clip);
+      } catch (err) {
+        clip.waveformPeaks    = null;
+        clip.waveformPeaksMin = null;
+      }
+    }
+
+    function drawWaveformOnClipEl(clip) {
+      const canvas = document.querySelector(`.tl-clip-waveform[data-clip-id="${clip.id}"]`);
+      if (!canvas) return;
+      canvas.classList.remove('loading');
+      renderWaveformToCanvas(canvas, clip.waveformPeaks, clip.waveformPeaksMin, clip.id === state.selectedClip?.id);
+    }
+
+    function renderWaveformToCanvas(canvas, peaksMax, peaksMin, isActive) {
+      const W = canvas.width  = canvas.offsetWidth  || canvas.parentElement?.offsetWidth  || 200;
+      const H = canvas.height = canvas.offsetHeight || canvas.parentElement?.offsetHeight || 96;
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, W, H);
+
+      const midY   = H / 2;
+      const MARGIN = 2; // px padding top/bottom so we never clip the border
+
+      // ── Placeholder (no peaks yet) ──────────────────────────────────────────
+      if (!peaksMax || peaksMax.length === 0) {
+        ctx.strokeStyle = isActive ? 'rgba(255, 100, 30, 0.4)' : 'rgba(80, 200, 220, 0.3)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        for (let i = 0; i <= 80; i++) {
+          const x = (i / 80) * W;
+          const y = midY + Math.sin(i * 0.45) * (midY * 0.18);
+          i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+        return;
+      }
+
+      const SAMPLES = peaksMax.length;
+
+      // ── Centre line ─────────────────────────────────────────────────────────
+      ctx.strokeStyle = isActive ? 'rgba(255,140,60,0.25)' : 'rgba(60,180,200,0.2)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(0, midY);
+      ctx.lineTo(W, midY);
+      ctx.stroke();
+
+      // ── Waveform bars — draw filled polygon for smooth Pro Tools look ───────
+      // Use the filled-path approach: trace top edge (maxes) then bottom edge (mins) back
+      const usableH = midY - MARGIN;
+
+      // Colour scheme
+      const fillColour  = isActive ? 'rgba(255, 110, 30, 0.9)'  : 'rgba(45, 185, 210, 0.9)';
+      const fillColour2 = isActive ? 'rgba(255,  60,  0, 0.55)' : 'rgba(20, 140, 170, 0.55)';
+
+      // Draw as a continuous filled shape — matches Pro Tools waveform style
+      ctx.beginPath();
+      // Top half (positive peaks)
+      for (let i = 0; i < SAMPLES; i++) {
+        const x = (i / SAMPLES) * W;
+        const y = midY - peaksMax[i] * usableH;
+        i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+      }
+      // Bottom half (negative peaks) — trace back right to left
+      for (let i = SAMPLES - 1; i >= 0; i--) {
+        const x = (i / SAMPLES) * W;
+        const y = midY - peaksMin[i] * usableH; // peaksMin is negative, so this goes below midY
+        ctx.lineTo(x, y);
+      }
+      ctx.closePath();
+
+      // Vertical gradient inside the shape
+      const grad = ctx.createLinearGradient(0, MARGIN, 0, H - MARGIN);
+      grad.addColorStop(0,    isActive ? 'rgba(255,160,80,0.7)'  : 'rgba(80,210,230,0.6)');
+      grad.addColorStop(0.45, fillColour);
+      grad.addColorStop(0.5,  isActive ? 'rgba(255,85,0,1.0)'    : 'rgba(30,165,195,1.0)');
+      grad.addColorStop(0.55, fillColour2);
+      grad.addColorStop(1,    isActive ? 'rgba(180,40,0,0.5)'    : 'rgba(20,110,140,0.5)');
+      ctx.fillStyle = grad;
+      ctx.fill();
+
+      // Thin bright outline on top of the fill for crispness
+      ctx.strokeStyle = isActive ? 'rgba(255, 180, 100, 0.7)' : 'rgba(120, 230, 245, 0.7)';
+      ctx.lineWidth   = 0.75;
+      ctx.stroke();
+    }
+
+    // ─── NOISE REDUCTION ENGINE ───────────────────────────────────────────────
+    // Real spectral subtraction — the same principle as iZotope RX:
+    //
+    //  LEARN:   FFT the selected noise-only region → average magnitude per bin
+    //  PROCESS: Overlap-add the whole clip offline:
+    //             for each frame: FFT → subtract noise bins → IFFT → output
+    //  PLAY:    Mute the video's audio path (dryGain=0), play denoised
+    //           AudioBuffer via BufferSourceNode, synced to video time.
+    //
+    // The MediaElementSource graph is built ONCE and never rebuilt.
+    // Audio: source → dryGain → destination  (dryGain=1 normal, 0 when NR active)
+    // NR audio: denoisedBuffer → BufferSourceNode → destination (started on play)
+
+    let nrNodes        = null;  // { source, dryGain }
+    let nrBufferSource = null;  // currently playing denoised BufferSourceNode
+
+    // ── Cooley-Tukey FFT ─────────────────────────────────────────────────────
+    function doFFT(re, im, inverse) {
+      const N = re.length;
+      for (let i = 1, j = 0; i < N; i++) {
+        let bit = N >> 1;
+        for (; j & bit; bit >>= 1) j ^= bit;
+        j ^= bit;
+        if (i < j) {
+          let t = re[i]; re[i] = re[j]; re[j] = t;
+              t = im[i]; im[i] = im[j]; im[j] = t;
+        }
+      }
+      for (let len = 2; len <= N; len <<= 1) {
+        const ang = (inverse ? 1 : -1) * 2 * Math.PI / len;
+        const wRe = Math.cos(ang), wIm = Math.sin(ang);
+        for (let i = 0; i < N; i += len) {
+          let cRe = 1, cIm = 0;
+          for (let j = 0; j < (len >> 1); j++) {
+            const uRe = re[i+j], uIm = im[i+j];
+            const h = i + j + (len >> 1);
+            const vRe = re[h]*cRe - im[h]*cIm;
+            const vIm = re[h]*cIm + im[h]*cRe;
+            re[i+j] = uRe+vRe;  im[i+j] = uIm+vIm;
+            re[h]   = uRe-vRe;  im[h]   = uIm-vIm;
+            const nr = cRe*wRe - cIm*wIm;
+            cIm = cRe*wIm + cIm*wRe;  cRe = nr;
+          }
+        }
+      }
+      if (inverse) { for (let i = 0; i < N; i++) { re[i] /= N; im[i] /= N; } }
+    }
+
+    // ── Build the Web Audio graph (once only) ────────────────────────────────
+    function ensureNoiseReductionGraph() {
+      if (nrNodes) return;
+      const vid = document.getElementById('previewVideo');
+      try {
+        const source  = audioCtx.createMediaElementSource(vid);
+        const dryGain = audioCtx.createGain();
+        dryGain.gain.value = 1;
+        source.connect(dryGain);
+        dryGain.connect(audioCtx.destination);
+        nrNodes = { source, dryGain };
+      } catch (err) { console.warn('NR graph:', err); }
+    }
+
+    // ── Denoised BufferSource control ─────────────────────────────────────────
+    function stopDenoisedAudio() {
+      if (nrBufferSource) {
+        try { nrBufferSource.stop(); } catch(e) {}
+        try { nrBufferSource.disconnect(); } catch(e) {}
+        nrBufferSource = null;
+      }
+    }
+
+    function startDenoisedAudio(clip, videoCurrentTime) {
+      stopDenoisedAudio();
+      if (!clip?.denoisedBuffer) return;
+      const offset   = Math.max(0, videoCurrentTime);
+      const duration = Math.max(0, clip.trimEnd - videoCurrentTime);
+      if (duration < 0.05) return;
+      const src = audioCtx.createBufferSource();
+      src.buffer = clip.denoisedBuffer;
+      src.connect(audioCtx.destination);
+      src.start(audioCtx.currentTime, offset, duration);
+      src.onended = () => { nrBufferSource = null; };
+      nrBufferSource = src;
+    }
+
+    // ── Called on every clip switch / NR toggle ───────────────────────────────
+    function applyNoiseReductionPreview(enabled, clip) {
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      ensureNoiseReductionGraph();
+      if (!nrNodes) return;
+      if (enabled && clip?.denoisedBuffer) {
+        nrNodes.dryGain.gain.setValueAtTime(0, audioCtx.currentTime);
+      } else {
+        nrNodes.dryGain.gain.setValueAtTime(1, audioCtx.currentTime);
+        stopDenoisedAudio();
+      }
+    }
+
+    function syncNoiseReductionToClip(clip) {
+      const enabled = !!(clip?.noiseReduction && clip?.denoisedBuffer);
+      applyNoiseReductionPreview(enabled, clip);
+      // If we're actively playing and NR is on, start denoised audio now
+      if (enabled && playbackActive) {
+        const vid = document.getElementById('previewVideo');
+        startDenoisedAudio(clip, vid.currentTime);
+      }
+    }
+
+    // ─── DENOISE STRENGTH ─────────────────────────────────────────────────────
+    const DENOISE_PRESETS = {
+      light:    { alpha: 0.8,  beta: 0.15, label: 'Light'    },
+      moderate: { alpha: 1.4,  beta: 0.05, label: 'Moderate' },
+      heavy:    { alpha: 2.2,  beta: 0.01, label: 'Heavy'    },
+    };
+    let denoiseStrength = 'light';
+
+    function showDenoisePopup() {
+      document.getElementById('denoisePopup').classList.add('open');
+      // Close on next outside click
+      setTimeout(() => {
+        document.addEventListener('click', hideDenoisePopupOnClickOutside, { once: true });
+      }, 0);
+    }
+
+    function hideDenoisePopup() {
+      document.getElementById('denoisePopup').classList.remove('open');
+    }
+
+    function hideDenoisePopupOnClickOutside(e) {
+      const popup = document.getElementById('denoisePopup');
+      if (!popup.contains(e.target)) hideDenoisePopup();
+    }
+
+    function pickDenoiseStrength(s) {
+      denoiseStrength = s;
+      hideDenoisePopup();
+      // Now actually run the learn with chosen strength
+      if (state.selectedClip && state.selection) {
+        learnNoiseProfile(state.selectedClip, state.selection.startTime, state.selection.endTime);
+      }
+    }
+
+    function toggleNoiseReduction() {
+      if (!state.selectedClip) return;
+
+      if (state.selection) {
+        // Selection active → show strength picker first, then learn
+        showDenoisePopup();
+        return;
+      }
+
+      // No selection → toggle existing denoising on/off
+      pushHistory();
+      state.selectedClip.noiseReduction = !state.selectedClip.noiseReduction;
+      const enabled = state.selectedClip.noiseReduction;
+      applyNoiseReductionPreview(enabled, state.selectedClip);
+      updateToolbarBtns();
+      renderTimeline();
+      showToast(
+        enabled ? '🎙 Dialogue Isolation ON' : '🎙 Noise reduction off',
+        enabled ? 'success' : 'info'
+      );
+    }
+
+    // ─── NOISE PROFILE LEARNER ────────────────────────────────────────────────
+    // Analyses the SELECTED region (just noise, no dialogue) to measure its
+    // spectral character, then denoises the ENTIRE CLIP using that profile.
+
+    async function learnNoiseProfile(clip, globalStart, globalEnd) {
+      const btn = document.getElementById('denoiseBtn');
+      btn.textContent = '⏳ Learning...';
+      btn.disabled = true;
+      await new Promise(r => setTimeout(r, 20));
+
+      try {
+        if (!clip.audioBuffer) {
+          const ab = await clip.file.arrayBuffer();
+          clip.audioBuffer = await audioCtx.decodeAudioData(ab);
+        }
+
+        const ab    = clip.audioBuffer;
+        const sr    = ab.sampleRate;
+        const numCh = ab.numberOfChannels;
+        const entry = clipLayout.find(l => l.clip.id === clip.id);
+        if (!entry) throw new Error('Clip not in timeline');
+
+        // Map global selection → sample offsets in the raw audio file
+        const localStart  = clip.trimStart + Math.max(0, globalStart - entry.globalTimeStart);
+        const localEnd    = clip.trimStart + Math.min(entry.duration, globalEnd - entry.globalTimeStart);
+        const startSample = Math.max(0, Math.floor(localStart * sr));
+        const endSample   = Math.min(ab.length, Math.ceil(localEnd * sr));
+
+        if (endSample - startSample < sr * 0.2) {
+          showToast('⚠️ Select at least 0.2s of pure background noise', 'error');
+          updateToolbarBtns(); return;
+        }
+
+        const FFT_SIZE = 2048;
+        const HALF     = FFT_SIZE >> 1;
+
+        // ── 1. LEARN: average FFT magnitude over the noise region ─────────────
+        const noiseMag = new Float32Array(HALF + 1);
+        let frameCount = 0;
+
+        for (let ch = 0; ch < numCh; ch++) {
+          const data = ab.getChannelData(ch);
+          for (let pos = startSample; pos + FFT_SIZE <= endSample; pos += HALF) {
+            const re = new Float32Array(FFT_SIZE);
+            const im = new Float32Array(FFT_SIZE);
+            for (let i = 0; i < FFT_SIZE; i++) re[i] = data[pos + i];
+            doFFT(re, im, false);
+            for (let k = 0; k <= HALF; k++) {
+              noiseMag[k] += Math.sqrt(re[k]*re[k] + im[k]*im[k]);
+            }
+            frameCount++;
+          }
+        }
+        if (frameCount > 0) {
+          for (let k = 0; k <= HALF; k++) noiseMag[k] /= frameCount;
+        }
+
+        // ── 2. PROCESS: offline spectral subtraction on the whole clip ─────────
+        // Overlap-add with Hann window — same method RX uses for artefact-free output.
+        btn.textContent = '⏳ Processing...';
+        await new Promise(r => setTimeout(r, 10));
+
+        const HOP   = FFT_SIZE >> 2;     // 75% overlap — high quality
+        const preset = DENOISE_PRESETS[denoiseStrength] || DENOISE_PRESETS.light;
+        const alpha  = preset.alpha;     // subtraction strength
+        const beta   = preset.beta;      // spectral floor (higher = more natural)
+        const totalSamples = ab.length;
+
+        // Hann window
+        const hann = new Float32Array(FFT_SIZE);
+        for (let i = 0; i < FFT_SIZE; i++) {
+          hann[i] = 0.5 * (1 - Math.cos(2 * Math.PI * i / (FFT_SIZE - 1)));
+        }
+
+        const outBuffer = audioCtx.createBuffer(numCh, totalSamples, sr);
+
+        for (let ch = 0; ch < numCh; ch++) {
+          const input  = ab.getChannelData(ch);
+          const output = new Float32Array(totalSamples);
+          const norm   = new Float32Array(totalSamples);
+
+          let hop = 0;
+          for (let pos = 0; pos + FFT_SIZE <= totalSamples; pos += HOP) {
+            const re = new Float32Array(FFT_SIZE);
+            const im = new Float32Array(FFT_SIZE);
+            for (let i = 0; i < FFT_SIZE; i++) re[i] = input[pos + i] * hann[i];
+
+            doFFT(re, im, false);
+
+            // Subtract learned noise magnitude per bin
+            for (let k = 0; k <= HALF; k++) {
+              const mag = Math.sqrt(re[k]*re[k] + im[k]*im[k]);
+              if (mag < 1e-12) continue;
+              const cleanMag = Math.max(beta * mag, mag - alpha * noiseMag[k]);
+              const scale = cleanMag / mag;
+              re[k] *= scale; im[k] *= scale;
+              // Enforce conjugate symmetry for real-valued IFFT
+              if (k > 0 && k < HALF) {
+                re[FFT_SIZE - k] =  re[k];
+                im[FFT_SIZE - k] = -im[k];
+              }
+            }
+            im[HALF] = 0; // Nyquist bin must be real
+
+            doFFT(re, im, true);  // IFFT
+
+            // Overlap-add
+            for (let i = 0; i < FFT_SIZE && (pos + i) < totalSamples; i++) {
+              output[pos + i] += re[i] * hann[i];
+              norm[pos + i]   += hann[i] * hann[i];
+            }
+
+            // Yield every 200 hops so the tab stays responsive
+            hop++;
+            if (hop % 200 === 0) await new Promise(r => setTimeout(r, 0));
+          }
+
+          // Normalise the overlap-add output
+          for (let i = 0; i < totalSamples; i++) {
+            output[i] = norm[i] > 1e-4 ? output[i] / norm[i] : 0;
+          }
+
+          outBuffer.copyToChannel(output, ch);
+        }
+
+        // ── 3. STORE & ACTIVATE ───────────────────────────────────────────────
+        pushHistory();
+        clip.noiseProfile   = {
+          learnedAt: new Date().toISOString(),
+          noiseMag:  Array.from(noiseMag),
+          strength:  denoiseStrength,
+        };
+        clip.denoisedBuffer = outBuffer;
+        clip.noiseReduction = true;
+
+        applyNoiseReductionPreview(true, clip);
+        clearSelection();
+        renderTimeline();
+        updateToolbarBtns();
+        document.getElementById('denoiseBtn').disabled = false;
+
+        showToast(`🎙 Done! ${preset.label} denoise applied — press Play to hear it`, 'success');
+
+      } catch (err) {
+        console.error('learnNoiseProfile:', err);
+        showToast('❌ Learn failed: ' + err.message, 'error');
+        renderTimeline();
+        updateToolbarBtns();
+      }
+    }
+
+    // ─── TABS ─────────────────────────────────────────────────────────────────
+    document.querySelectorAll('.tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        const id = tab.dataset.tab;
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+        tab.classList.add('active');
+        document.getElementById(`panel-${id}`).classList.add('active');
+      });
+    });
+
+    // ─── FILE UPLOAD ──────────────────────────────────────────────────────────
+    const dropZone = document.getElementById('dropZone');
+    const fileInput = document.getElementById('fileInput');
+
+    dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragging'); });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragging'));
+    dropZone.addEventListener('drop', e => {
+      e.preventDefault();
+      dropZone.classList.remove('dragging');
+      handleFiles([...e.dataTransfer.files].filter(f => f.type.startsWith('video/')));
+    });
+    fileInput.addEventListener('change', () => handleFiles([...fileInput.files]));
+
+    function handleFiles(files) {
+      files.forEach(file => {
+        const url = URL.createObjectURL(file);
+        const vid = document.createElement('video');
+        vid.src = url;
+        vid.preload = 'metadata';
+        vid.onloadedmetadata = () => {
+          pushHistory();
+          const clip = {
+            id: Date.now() + Math.random(),
+            file,
+            name: file.name.replace(/\.[^.]+$/, ''),
+            duration: vid.duration,
+            trimStart: 0,
+            trimEnd: vid.duration,
+            url,
+            waveformPeaks: null,
+          };
+          state.clips.push(clip);
+          renderClipList();
+          renderTimeline();
+          updateSmackBtn();
+          showToast(`✅ Added: ${clip.name}`, 'success');
+          // Generate waveform asynchronously — updates canvas when ready
+          generateWaveform(clip);
+        };
+      });
+    }
+
+    function formatTime(s) {
+      const m = Math.floor(s / 60);
+      const sec = (s % 60).toFixed(1);
+      return `${m}:${sec.padStart(4,'0')}`;
+    }
+
+    function formatTimecode(s) {
+      const h = Math.floor(s / 3600);
+      const m = Math.floor((s % 3600) / 60);
+      const sec = Math.floor(s % 60);
+      return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
+    }
+
+    // ─── CLIP LIST ────────────────────────────────────────────────────────────
+    function renderClipList() {
+      const list = document.getElementById('clipList');
+      const empty = document.getElementById('clipListEmpty');
+
+      // Clear everything except the empty message
+      list.querySelectorAll('.clip-item').forEach(el => el.remove());
+      empty.style.display = state.clips.length ? 'none' : 'block';
+
+      state.clips.forEach((clip, i) => {
+        const el = document.createElement('div');
+        el.className = 'clip-item' + (state.selectedClip?.id === clip.id ? ' selected' : '');
+        el.dataset.id = clip.id;
+        el.innerHTML = `
+          <div class="clip-thumb">🎬</div>
+          <div class="clip-info">
+            <div class="clip-name" title="${clip.name}">${clip.name}</div>
+            <div class="clip-meta">${formatTime(clip.trimEnd - clip.trimStart)} &nbsp;·&nbsp; ${(clip.file.size/1024/1024).toFixed(1)} MB</div>
+          </div>
+          <button class="clip-remove" onclick="removeClip('${clip.id}', event)" title="Remove">✕</button>
+        `;
+        el.addEventListener('click', () => selectClip(clip));
+        list.appendChild(el);
+      });
+    }
+
+    function removeClip(id, e) {
+      e.stopPropagation();
+      pushHistory();
+      state.clips = state.clips.filter(c => c.id != id);
+      if (state.selectedClip?.id == id) state.selectedClip = null;
+      renderClipList();
+      renderTimeline();
+      updateSmackBtn();
+    }
+
+    function clearAll() {
+      if (state.clips.length && !confirm('Start a new project? This will clear all clips.')) return;
+      state.clips = [];
+      state.overlays = [];
+      state.selectedClip = null;
+      renderClipList();
+      renderTimeline();
+      renderOverlayList();
+      updateSmackBtn();
+      document.getElementById('previewVideo').style.display = 'none';
+      document.getElementById('previewPlaceholder').style.display = 'block';
+    }
+
+    function selectClip(clip) {
+      state.selectedClip = clip;
+      renderClipList();
+      renderTimeline();
+      // Find global start of this clip and seek there
+      const entry = clipLayout.find(l => l.clip.id === clip.id);
+      if (entry) seekToGlobalAndUpdate(entry.globalTimeStart);
+      updateToolbarBtns();
+    }
+
+    function updateToolbarBtns() {
+      const has  = !!state.selectedClip;
+      const clip = state.selectedClip;
+      document.getElementById('trimBtn').disabled = !has;
+      document.getElementById('cutBtn').disabled  = !has;
+      document.getElementById('playBtn').disabled = !has;
+      document.getElementById('upBtn').disabled   = !has;
+      document.getElementById('downBtn').disabled = !has;
+
+      const btn = document.getElementById('denoiseBtn');
+      btn.disabled = !has;
+
+      if (!has) {
+        btn.textContent = '🎙 Denoise';
+        btn.className   = btn.className.replace(/\s*(active-feature|learned-feature)/g, '');
+        btn.title       = 'Select a clip first';
+        return;
+      }
+
+      const hasSelection = !!state.selection;
+      const hasProfile   = !!clip.noiseProfile;
+      const isOn         = !!clip.noiseReduction;
+
+      if (hasSelection) {
+        // Contextual: selection active → show learn prompt
+        btn.textContent = hasProfile ? '🎙 Re-Learn' : '🎙 Learn Noise';
+        btn.title       = 'Analyse selected region as noise floor, then denoise the rest';
+        btn.classList.remove('active-feature');
+        btn.classList.add('active-feature'); // highlight to show it's actionable
+      } else if (isOn && hasProfile) {
+        const strengthLabel = DENOISE_PRESETS[clip.noiseProfile.strength]?.label ?? 'Learned';
+        btn.textContent = `🎙 ${strengthLabel} ✓`;
+        btn.title       = `${strengthLabel} denoise active. Click to toggle off.`;
+        btn.classList.add('active-feature');
+      } else if (isOn) {
+        btn.textContent = '🎙 Denoise ✓';
+        btn.title       = 'Generic noise reduction on. Select a region of pure noise and click to tune it.';
+        btn.classList.add('active-feature');
+      } else {
+        btn.textContent = '🎙 Denoise';
+        btn.title       = hasProfile
+          ? 'Noise profile learned. Click to re-enable denoising.'
+          : 'Select a region of pure background noise and click to learn its profile, or click without selection for generic denoise.';
+        btn.classList.remove('active-feature');
+      }
+    }
+
+    // ─── TIMELINE ─────────────────────────────────────────────────────────────
+    // clipLayout[i] = { clip, pixelStart, pixelWidth, globalTimeStart }
+    let clipLayout = [];
+
+    function renderTimeline() {
+      const track = document.getElementById('timelineTrack');
+      const empty = document.getElementById('timelineEmpty');
+
+      track.querySelectorAll('.tl-clip').forEach(el => el.remove());
+      empty.style.display = state.clips.length ? 'none' : 'block';
+
+      const SCALE = state.timelineScale;
+      const PADDING = 16; // matches track padding-left
+      const GAP = 4;
+
+      clipLayout = [];
+      let cursorPx = PADDING;
+      let globalTime = 0;
+
+      state.clips.forEach((clip, i) => {
+        const duration = clip.trimEnd - clip.trimStart;
+        const width = Math.max(duration * SCALE, 90);
+
+        clipLayout.push({
+          clip,
+          pixelStart: cursorPx,
+          pixelWidth: width,
+          globalTimeStart: globalTime,
+          duration,
+        });
+
+        const el = document.createElement('div');
+        el.className = 'tl-clip' + (state.selectedClip?.id === clip.id ? ' active' : '');
+        el.style.width = width + 'px';
+        el.innerHTML = `
+          <div class="trim-handle left"></div>
+          <div class="tl-clip-name">${clip.name}</div>
+          <div class="tl-clip-duration">${formatTime(duration)}</div>
+          ${clip.noiseReduction
+            ? `<div class="tl-clip-denoise-badge">${clip.noiseProfile ? '🎙 LEARNED' : '🎙 DENOISE'}</div>`
+            : ''}
+          <canvas class="tl-clip-waveform ${clip.waveformPeaks ? '' : 'loading'}" data-clip-id="${clip.id}" height="48"></canvas>
+          <div class="trim-handle right"></div>
+        `;
+
+        // Always draw waveform — real peaks if available, placeholder if still loading
+        requestAnimationFrame(() => {
+          const canvas = el.querySelector('.tl-clip-waveform');
+          if (canvas) renderWaveformToCanvas(canvas, clip.waveformPeaks || null, clip.waveformPeaksMin || null, state.selectedClip?.id === clip.id);
+        });
+
+        // Click → seek OR drag → selection (handled at track level, see setupTrackInteraction)
+        el.addEventListener('mousedown', (e) => {
+          if (e.target.classList.contains('trim-handle')) return;
+          e.preventDefault();
+          startTrackInteraction(e, clip, globalTime);
+        });
+
+        track.appendChild(el);
+
+        cursorPx += width + GAP;
+        globalTime += duration;
+      });
+
+      // Show / hide playhead
+      const ph = document.getElementById('playhead');
+      ph.style.display = state.clips.length ? 'block' : 'none';
+
+      // Reposition playhead at its current global time
+      positionPlayhead(state.playheadGlobalTime || 0);
+
+      // Redraw selection region
+      renderSelection();
+
+      // Refresh player bar total duration
+      const tot = clipLayout.reduce((s, e) => s + e.duration, 0);
+      if (tot > 0) {
+        document.getElementById('playerDuration').textContent    = formatTime(tot);
+        document.getElementById('playerPlayBtn').disabled        = false;
+        updatePlayerScrubberGlobal(state.playheadGlobalTime || 0);
+      } else {
+        resetPlayerBar();
+      }
+
+      // total duration timecode
+      document.getElementById('timecode').textContent = formatTimecode(tot);
+    }
+
+    // ─── PIXEL ↔ TIME HELPERS ─────────────────────────────────────────────────
+    function trackXToGlobalTime(px) {
+      if (!clipLayout.length) return 0;
+      for (const entry of clipLayout) {
+        if (px >= entry.pixelStart && px <= entry.pixelStart + entry.pixelWidth) {
+          const frac = (px - entry.pixelStart) / entry.pixelWidth;
+          return entry.globalTimeStart + frac * entry.duration;
+        }
+      }
+      // Before first clip
+      if (px < clipLayout[0].pixelStart) return 0;
+      // After last clip
+      const last = clipLayout[clipLayout.length - 1];
+      return last.globalTimeStart + last.duration;
+    }
+
+    function trackXFromMouseEvent(e) {
+      const track = document.getElementById('timelineTrack');
+      const rect = track.getBoundingClientRect();
+      return e.clientX - rect.left;
+    }
+
+    function clipAtGlobalTime(t) {
+      for (const entry of clipLayout) {
+        if (t >= entry.globalTimeStart && t < entry.globalTimeStart + entry.duration) {
+          return entry;
+        }
+      }
+      return null;
+    }
+
+    // ─── TRACK INTERACTION (click + drag) ─────────────────────────────────────
+    let dragState = null; // { startPx, startTime, active }
+
+    function startTrackInteraction(e, clip, clipGlobalStart) {
+      const startPx = trackXFromMouseEvent(e);
+      const startTime = trackXToGlobalTime(startPx);
+      dragState = { startPx, startTime, moved: false, clip };
+
+      // Immediately select the clip under cursor
+      if (state.selectedClip?.id !== clip.id) {
+        state.selectedClip = clip;
+        updateToolbarBtns();
+        // Update active border without full re-render
+        document.querySelectorAll('.tl-clip').forEach((c, ci) => {
+          const isActive = state.clips[ci]?.id === clip.id;
+          c.classList.toggle('active', isActive);
+          const wc = c.querySelector('.tl-clip-waveform');
+          if (wc && state.clips[ci]?.waveformPeaks) {
+            renderWaveformToCanvas(wc, state.clips[ci].waveformPeaks, state.clips[ci].waveformPeaksMin, isActive);
+          }
+        });
+        // Load video
+        const vid = document.getElementById('previewVideo');
+        if (vid.dataset.clipId !== String(clip.id)) {
+          vid.src = clip.url;
+          vid.dataset.clipId = String(clip.id);
+          vid.style.display = 'block';
+          document.getElementById('previewPlaceholder').style.display = 'none';
+        }
+      }
+
+      document.addEventListener('mousemove', onDragMove);
+      document.addEventListener('mouseup',   onDragUp, { once: true });
+    }
+
+    function onDragMove(e) {
+      if (!dragState) return;
+      const px = trackXFromMouseEvent(e);
+      const dx = Math.abs(px - dragState.startPx);
+
+      if (dx > 5) {
+        dragState.moved = true;
+        const currentTime = trackXToGlobalTime(px);
+        const t0 = Math.min(dragState.startTime, currentTime);
+        const t1 = Math.max(dragState.startTime, currentTime);
+        state.selection = { startTime: t0, endTime: t1 };
+        renderSelection();
+        // Live-seek the video to the selection start so you see the frame
+        seekPreviewToGlobalTime(t0);
+      }
+    }
+
+    function onDragUp(e) {
+      document.removeEventListener('mousemove', onDragMove);
+      if (!dragState) return;
+
+      if (!dragState.moved) {
+        // Pure click — seek to the clicked point and clear any selection
+        const px = trackXFromMouseEvent(e);
+        const globalSeekTime = trackXToGlobalTime(px);
+        seekPreviewToGlobalTime(globalSeekTime);
+        clearSelection();
+      } else {
+        // Drag ended — finalise and seek to selection start
+        renderSelection();
+        if (state.selection) {
+          seekPreviewToGlobalTime(state.selection.startTime);
+        }
+      }
+
+      dragState = null;
+    }
+
+    // Also allow starting a drag from the empty track area (between clips)
+    document.getElementById('timelineTrack').addEventListener('mousedown', (e) => {
+      if (e.target.id !== 'timelineTrack') return;
+      if (!clipLayout.length) return;
+      e.preventDefault();
+      const px = trackXFromMouseEvent(e);
+      const startTime = trackXToGlobalTime(px);
+      dragState = { startPx: px, startTime, moved: false, clip: null };
+      document.addEventListener('mousemove', onDragMove);
+      document.addEventListener('mouseup', onDragUp, { once: true });
+    });
+
+    // ─── SELECTION RENDER ─────────────────────────────────────────────────────
+    function renderSelection() {
+      const reg    = document.getElementById('selectionRegion');
+      const delBtn = document.getElementById('delSelBtn');
+
+      if (!state.selection || !clipLayout.length) {
+        reg.style.display  = 'none';
+        delBtn.style.display = 'none';
+        updatePreviewSelectionBar();
+        return;
+      }
+
+      const { startTime, endTime } = state.selection;
+      if (endTime - startTime < 0.05) {
+        reg.style.display  = 'none';
+        delBtn.style.display = 'none';
+        updatePreviewSelectionBar();
+        return;
+      }
+
+      // Convert times to pixels for timeline highlight
+      const startPx = globalTimeToPx(startTime);
+      const endPx   = globalTimeToPx(endTime);
+
+      reg.style.display = 'block';
+      reg.style.left  = startPx + 'px';
+      reg.style.width = (endPx - startPx) + 'px';
+
+      document.getElementById('selLabelStart').textContent = formatTime(startTime);
+      document.getElementById('selLabelEnd').textContent   = formatTime(endTime);
+      document.getElementById('selDuration').textContent   = (endTime - startTime).toFixed(2) + 's';
+
+      delBtn.style.display = 'inline-flex';
+
+      // Update preview bar
+      updatePreviewSelectionBar();
+
+      // Refresh toolbar so Denoise button label updates to "Learn Noise" while selection active
+      updateToolbarBtns();
+    }
+
+    // ─── PREVIEW SELECTION BAR ────────────────────────────────────────────────
+    function updatePreviewSelectionBar() {
+      const range    = document.getElementById('previewSelRange');
+      const vignette = document.getElementById('previewVignette');
+      const totalDur = clipLayout.reduce((s, e) => s + e.duration, 0);
+
+      if (!state.selection || !totalDur) {
+        range.style.display = 'none';
+        vignette.classList.remove('active');
+        document.getElementById('playerScrubSel').style.display = 'none';
+        return;
+      }
+
+      const { startTime, endTime } = state.selection;
+      const startPct = ((startTime / totalDur) * 100).toFixed(2) + '%';
+      const widthPct  = (((endTime - startTime) / totalDur) * 100).toFixed(2) + '%';
+
+      range.style.display = 'block';
+      range.style.left  = startPct;
+      range.style.width = widthPct;
+      vignette.classList.add('active');
+    }
+
+    function updatePreviewPlayheadTick(globalTime) {
+      const tick = document.getElementById('previewPhTick');
+      const totalDur = clipLayout.reduce((s, e) => s + e.duration, 0);
+      if (!totalDur) { tick.style.left = '0%'; return; }
+      tick.style.left = ((globalTime / totalDur) * 100).toFixed(2) + '%';
+    }
+
+    // Seek the preview to the selection start across clip boundaries
+    // (kept for backwards compat with drag handlers — delegates to unified seek)
+    function seekPreviewToGlobalTime(globalTime) {
+      seekToGlobalAndUpdate(globalTime);
+    }
+
+    function globalTimeToPx(t) {
+      if (!clipLayout.length) return 16;
+      for (const entry of clipLayout) {
+        if (t >= entry.globalTimeStart && t <= entry.globalTimeStart + entry.duration) {
+          const frac = (t - entry.globalTimeStart) / entry.duration;
+          return entry.pixelStart + frac * entry.pixelWidth;
+        }
+        if (t > entry.globalTimeStart + entry.duration) {
+          // keep searching
+        }
+      }
+      const last = clipLayout[clipLayout.length - 1];
+      if (t >= last.globalTimeStart + last.duration) {
+        return last.pixelStart + last.pixelWidth;
+      }
+      return clipLayout[0].pixelStart;
+    }
+
+    function clearSelection() {
+      state.selection = null;
+      renderSelection();
+      document.getElementById('previewSelRange').style.display  = 'none';
+      document.getElementById('previewVignette').classList.remove('active');
+      document.getElementById('playerScrubSel').style.display   = 'none';
+    }
+
+    // ─── DELETE SELECTION REGION ──────────────────────────────────────────────
+    function deleteSelection() {
+      if (!state.selection) return;
+      const { startTime, endTime } = state.selection;
+      pushHistory();
+
+      const newClips = [];
+      for (const entry of clipLayout) {
+        const clip = entry.clip;
+        const gStart = entry.globalTimeStart;
+        const gEnd   = gStart + entry.duration;
+
+        // Clip entirely inside selection → remove
+        if (gStart >= startTime && gEnd <= endTime) continue;
+
+        // Clip entirely outside selection → keep as-is
+        if (gEnd <= startTime || gStart >= endTime) {
+          newClips.push(clip);
+          continue;
+        }
+
+        // Clip overlaps selection start — keep the part before
+        if (gStart < startTime && gEnd > startTime) {
+          const newClip = {
+            ...clip,
+            id: Date.now() + Math.random(),
+            trimEnd:        clip.trimStart + (startTime - gStart),
+            name:           clip.name,
+            waveformPeaks:    null,
+            waveformPeaksMin: null,
+            audioBuffer:    clip.audioBuffer ?? null,
+            denoisedBuffer: null,
+            noiseReduction: false,
+          };
+          newClips.push(newClip);
+        }
+
+        // Clip overlaps selection end — keep the part after
+        if (gStart < endTime && gEnd > endTime) {
+          const newClip = {
+            ...clip,
+            id: Date.now() + Math.random(),
+            trimStart:      clip.trimStart + (endTime - gStart),
+            name:           clip.name,
+            waveformPeaks:    null,
+            waveformPeaksMin: null,
+            audioBuffer:    clip.audioBuffer ?? null,
+            denoisedBuffer: null,
+            noiseReduction: false,
+          };
+          newClips.push(newClip);
+        }
+      }
+
+      state.clips = newClips;
+      state.selectedClip = newClips[0] || null;
+      clearSelection();
+      renderClipList();
+      renderTimeline();
+      updateSmackBtn();
+      updateToolbarBtns();
+      // Regenerate waveforms for any clips whose trim region changed
+      newClips.forEach(c => { if (!c.waveformPeaks) generateWaveform(c); });
+      showToast(`🗑 Deleted region ${formatTime(startTime)} → ${formatTime(endTime)}`, 'success');
+    }
+
+    function positionPlayhead(globalTime) {
+      const ph = document.getElementById('playhead');
+      if (!clipLayout.length) return;
+
+      // Find which clip this time falls in
+      let px = 16; // default: left padding
+      for (const entry of clipLayout) {
+        if (globalTime >= entry.globalTimeStart && globalTime <= entry.globalTimeStart + entry.duration) {
+          const fraction = (globalTime - entry.globalTimeStart) / entry.duration;
+          px = entry.pixelStart + fraction * entry.pixelWidth;
+          break;
+        }
+        // Past the end of this clip
+        if (globalTime > entry.globalTimeStart + entry.duration) {
+          px = entry.pixelStart + entry.pixelWidth;
+        }
+      }
+
+      ph.style.left = px + 'px';
+      document.getElementById('playheadTime').textContent = formatTime(globalTime);
+      state.playheadGlobalTime = globalTime;
+    }
+
+    // ─── PLAYBACK ENGINE ──────────────────────────────────────────────────────
+    // All playback is timeline-scoped. The scrub bar represents total duration.
+    // Clips play in sequence; when one ends the next loads and keeps rolling.
+
+    let playbackActive = false; // true while we're in sequential-play mode
+
+    function totalDuration() {
+      return clipLayout.reduce((s, e) => s + e.duration, 0);
+    }
+
+    // ─── SYNC PLAYHEAD WITH VIDEO ──────────────────────────────────────────────
+    (function setupPlayheadSync() {
+      const vid = document.getElementById('previewVideo');
+
+      vid.addEventListener('timeupdate', () => {
+        const clipId = vid.dataset.clipId;
+        const layout = clipLayout.find(l => String(l.clip.id) === clipId);
+        if (!layout) return;
+
+        const localTime  = vid.currentTime;
+        const elapsed    = localTime - layout.clip.trimStart;
+        const globalTime = layout.globalTimeStart + Math.max(0, elapsed);
+
+        positionPlayhead(globalTime);
+        updatePreviewPlayheadTick(globalTime);
+        updatePlayerScrubberGlobal(globalTime);
+
+        // Enforce selection end while playing
+        if (playbackActive && state.selection) {
+          if (globalTime >= state.selection.endTime - 0.05) {
+            stopPlayback();
+            seekToGlobalAndUpdate(state.selection.startTime);
+            return;
+          }
+        }
+
+        // Advance to the next clip when this one hits its trimEnd
+        if (playbackActive && localTime >= layout.clip.trimEnd - 0.05) {
+          const nextIdx = clipLayout.indexOf(layout) + 1;
+          if (nextIdx < clipLayout.length) {
+            // Load next clip and keep rolling
+            const next = clipLayout[nextIdx];
+            vid.src = next.clip.url;
+            vid.dataset.clipId = String(next.clip.id);
+            state.selectedClip = next.clip;
+            vid.addEventListener('canplay', function onCanPlay() {
+              vid.removeEventListener('canplay', onCanPlay);
+              vid.currentTime = next.clip.trimStart;
+              vid.play().then(() => {
+                // Sync denoised audio for the new clip if it has NR
+                syncNoiseReductionToClip(next.clip);
+              }).catch(() => {});
+            }, { once: true });
+            updateClipActiveHighlight(next.clip);
+          } else {
+            // All clips done — stop at the end
+            stopPlayback();
+            seekToGlobalAndUpdate(0);
+          }
+        }
+
+        document.getElementById('timecode').textContent = formatTimecode(globalTime);
+      });
+
+      vid.addEventListener('play',  () => updatePlayPauseIcon(true));
+      vid.addEventListener('pause', () => { if (!playbackActive) updatePlayPauseIcon(false); });
+      vid.addEventListener('ended', () => updatePlayPauseIcon(false));
+    })();
+
+    function stopPlayback() {
+      playbackActive = false;
+      document.getElementById('previewVideo').pause();
+      stopDenoisedAudio();
+      updatePlayPauseIcon(false);
+    }
+
+    function updateClipActiveHighlight(clip) {
+      document.querySelectorAll('.tl-clip').forEach((c, ci) => {
+        const isActive = state.clips[ci]?.id === clip.id;
+        c.classList.toggle('active', isActive);
+        const wc = c.querySelector('.tl-clip-waveform');
+        if (wc && state.clips[ci]?.waveformPeaks) {
+          renderWaveformToCanvas(wc, state.clips[ci].waveformPeaks, state.clips[ci].waveformPeaksMin, isActive);
+        }
+      });
+    }
+
+    // ─── GLOBAL SCRUB BAR ────────────────────────────────────────────────────
+    // Bar width = total timeline duration. Playhead = globalTime / totalDur.
+
+    function updatePlayerScrubberGlobal(globalTime) {
+      const tot = totalDuration();
+      if (tot <= 0) return;
+      const pct = Math.min(1, globalTime / tot) * 100;
+
+      document.getElementById('playerScrubFill').style.width  = pct + '%';
+      document.getElementById('playerScrubThumb').style.left  = pct + '%';
+      document.getElementById('playerCurrentTime').textContent = formatTime(globalTime);
+      document.getElementById('playerDuration').textContent    = formatTime(tot);
+
+      // Blue selection overlay on the scrub bar
+      if (state.selection) {
+        const selStartPct = (state.selection.startTime / tot * 100).toFixed(2) + '%';
+        const selWidthPct = ((state.selection.endTime - state.selection.startTime) / tot * 100).toFixed(2) + '%';
+        const sel = document.getElementById('playerScrubSel');
+        sel.style.display = 'block';
+        sel.style.left  = selStartPct;
+        sel.style.width = selWidthPct;
+      } else {
+        document.getElementById('playerScrubSel').style.display = 'none';
+      }
+    }
+
+    // Keep legacy signature so other callers (enablePlayerBar etc.) still work
+    function updatePlayerScrubber(localTime, clip) {
+      const layout = clipLayout.find(l => l.clip.id === clip.id);
+      if (!layout) return;
+      const globalTime = layout.globalTimeStart + Math.max(0, localTime - clip.trimStart);
+      updatePlayerScrubberGlobal(globalTime);
+    }
+
+    function updatePlayPauseIcon(playing) {
+      document.getElementById('playerPlayIcon').style.display  = playing ? 'none' : '';
+      document.getElementById('playerPauseIcon').style.display = playing ? ''     : 'none';
+    }
+
+    function resetPlayerBar() {
+      document.getElementById('playerScrubFill').style.width    = '0%';
+      document.getElementById('playerScrubThumb').style.left    = '0%';
+      document.getElementById('playerCurrentTime').textContent  = '0:00.0';
+      document.getElementById('playerDuration').textContent     = '0:00.0';
+      document.getElementById('playerScrubSel').style.display   = 'none';
+      document.getElementById('playerPlayBtn').disabled         = true;
+      updatePlayPauseIcon(false);
+    }
+
+    function enablePlayerBar(clip) {
+      const tot = totalDuration();
+      document.getElementById('playerDuration').textContent    = formatTime(tot > 0 ? tot : (clip.trimEnd - clip.trimStart));
+      document.getElementById('playerCurrentTime').textContent = formatTime(state.playheadGlobalTime || 0);
+      document.getElementById('playerPlayBtn').disabled        = false;
+    }
+
+    // Scrub bar — seeks across the entire timeline
+    (function setupScrubBar() {
+      const track = document.getElementById('playerScrubTrack');
+
+      function scrubTo(e) {
+        if (!clipLayout.length) return;
+        const rect = track.getBoundingClientRect();
+        const frac = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+        const globalTime = frac * totalDuration();
+        stopPlayback();
+        seekToGlobalAndUpdate(globalTime);
+      }
+
+      track.addEventListener('mousedown', (e) => {
+        scrubTo(e);
+        const onMove = (ev) => scrubTo(ev);
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', () => {
+          document.removeEventListener('mousemove', onMove);
+        }, { once: true });
+      });
+    })();
+
+    // Seek the video to a global timeline position, updating everything
+    function seekToGlobalAndUpdate(globalTime) {
+      const entry = clipAtGlobalTime(globalTime) || clipLayout[0];
+      if (!entry) return;
+
+      const vid = document.getElementById('previewVideo');
+      const localSeek = entry.clip.trimStart + (globalTime - entry.globalTimeStart);
+
+      if (vid.dataset.clipId !== String(entry.clip.id)) {
+        vid.src = entry.clip.url;
+        vid.dataset.clipId = String(entry.clip.id);
+        vid.style.display = 'block';
+        document.getElementById('previewPlaceholder').style.display = 'none';
+      }
+
+      vid.currentTime = Math.max(entry.clip.trimStart, Math.min(entry.clip.trimEnd, localSeek));
+      state.selectedClip = entry.clip;
+      state.playheadGlobalTime = globalTime;
+      positionPlayhead(globalTime);
+      updatePreviewPlayheadTick(globalTime);
+      updatePlayerScrubberGlobal(globalTime);
+      updateToolbarBtns();
+      updateClipActiveHighlight(entry.clip);
+      syncNoiseReductionToClip(entry.clip);
+    }
+
+    let muted = false;
+    function toggleMute() {
+      const vid = document.getElementById('previewVideo');
+      muted = !muted;
+      vid.muted = muted;
+      document.getElementById('playerVolBtn').textContent = muted ? '🔇' : '🔊';
+    }
+
+    // ─── PREVIEW ──────────────────────────────────────────────────────────────
+    function loadPreview(clip) {
+      const vid = document.getElementById('previewVideo');
+      vid.src = clip.url;
+      vid.dataset.clipId = String(clip.id);
+      vid.currentTime = clip.trimStart;
+      vid.style.display = 'block';
+      document.getElementById('previewPlaceholder').style.display = 'none';
+      enablePlayerBar(clip);
+    }
+
+    function playPreview() {
+      if (!clipLayout.length) return;
+      const vid = document.getElementById('previewVideo');
+
+      if (playbackActive) {
+        stopPlayback();
+        return;
+      }
+
+      // Ensure AudioContext is running (required when NR graph owns the audio path)
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+
+      const startGlobal = state.selection
+        ? state.selection.startTime
+        : (state.playheadGlobalTime || 0);
+
+      seekToGlobalAndUpdate(startGlobal);
+
+      playbackActive = true;
+      updatePlayPauseIcon(true);
+
+      setTimeout(() => {
+        vid.play().then(() => {
+          // If NR is active on this clip, start the denoised AudioBuffer in sync
+          const clip = state.selectedClip;
+          if (clip?.noiseReduction && clip?.denoisedBuffer) {
+            startDenoisedAudio(clip, vid.currentTime);
+          }
+        }).catch(err => {
+          console.warn('play() rejected:', err);
+          playbackActive = false;
+          updatePlayPauseIcon(false);
+        });
+      }, 30);
+    }
+
+    // ─── TRIM ─────────────────────────────────────────────────────────────────
+    let trimClip = null;
+
+    function openTrimModal() {
+      if (!state.selectedClip) return;
+      trimClip = state.selectedClip;
+      const vid = document.getElementById('trimVideo');
+      vid.src = trimClip.url;
+      vid.currentTime = trimClip.trimStart;
+
+      document.getElementById('trimStartInput').value = trimClip.trimStart.toFixed(1);
+      document.getElementById('trimStartInput').max = trimClip.duration;
+      document.getElementById('trimEndInput').value = trimClip.trimEnd.toFixed(1);
+      document.getElementById('trimEndInput').max = trimClip.duration;
+      document.getElementById('trimBarStart').textContent = formatTime(0);
+      document.getElementById('trimBarEnd').textContent = formatTime(trimClip.duration);
+
+      updateTrimBar();
+      document.getElementById('trimModal').classList.add('open');
+
+      document.getElementById('trimStartInput').oninput = updateTrimBar;
+      document.getElementById('trimEndInput').oninput = updateTrimBar;
+    }
+
+    function updateTrimBar() {
+      if (!trimClip) return;
+      const s = parseFloat(document.getElementById('trimStartInput').value) || 0;
+      const e = parseFloat(document.getElementById('trimEndInput').value) || trimClip.duration;
+      const pct = (v) => (v / trimClip.duration * 100).toFixed(2) + '%';
+      const sel = document.getElementById('trimSelection');
+      sel.style.left = pct(s);
+      sel.style.width = pct(e - s);
+      document.getElementById('trimDuration').textContent = (e - s).toFixed(1) + 's';
+    }
+
+    function applyTrim() {
+      if (!trimClip) return;
+      const s = Math.max(0, parseFloat(document.getElementById('trimStartInput').value) || 0);
+      const e = Math.min(trimClip.duration, parseFloat(document.getElementById('trimEndInput').value) || trimClip.duration);
+      if (s >= e) { showToast('⚠️ Start must be before end', 'error'); return; }
+      pushHistory();
+      trimClip.trimStart = s;
+      trimClip.trimEnd   = e;
+      // Invalidate cached peaks — they were sampled from the old trim region
+      trimClip.waveformPeaks    = null;
+      trimClip.waveformPeaksMin = null;
+      renderTimeline();
+      renderClipList();
+      generateWaveform(trimClip); // async — redraws canvas when done
+      closeTrimModal();
+      showToast(`✅ Trimmed: ${formatTime(s)} → ${formatTime(e)}`, 'success');
+    }
+
+    function closeTrimModal() {
+      document.getElementById('trimModal').classList.remove('open');
+      trimClip = null;
+    }
+
+    // ─── MOVE CLIP ────────────────────────────────────────────────────────────
+    function moveClipUp() {
+      if (!state.selectedClip) return;
+      const i = state.clips.findIndex(c => c.id === state.selectedClip.id);
+      if (i <= 0) return;
+      pushHistory();
+      [state.clips[i-1], state.clips[i]] = [state.clips[i], state.clips[i-1]];
+      renderTimeline();
+      renderClipList();
+    }
+
+    function moveClipDown() {
+      if (!state.selectedClip) return;
+      const i = state.clips.findIndex(c => c.id === state.selectedClip.id);
+      if (i >= state.clips.length - 1) return;
+      pushHistory();
+      [state.clips[i], state.clips[i+1]] = [state.clips[i+1], state.clips[i]];
+      renderTimeline();
+      renderClipList();
+    }
+
+    // ─── TEXT OVERLAYS ────────────────────────────────────────────────────────
+    document.querySelectorAll('.color-swatch').forEach(swatch => {
+      swatch.addEventListener('click', () => {
+        document.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('active'));
+        swatch.classList.add('active');
+        state.selectedColor = swatch.dataset.color;
+      });
+    });
+
+    function addTextOverlay() {
+      const text = document.getElementById('textInput').value.trim();
+      if (!text) { showToast('✏️ Please enter some text first!', 'info'); return; }
+
+      const overlay = {
+        id: Date.now(),
+        text,
+        position: document.getElementById('textPosition').value,
+        size: document.getElementById('textSize').value,
+        color: state.selectedColor,
+        start: parseFloat(document.getElementById('textStart').value) || 0,
+        end: parseFloat(document.getElementById('textEnd').value) || 5,
+      };
+      state.overlays.push(overlay);
+      renderOverlayList();
+      document.getElementById('textInput').value = '';
+      showToast(`✅ Text overlay added!`, 'success');
+    }
+
+    function renderOverlayList() {
+      const list = document.getElementById('overlayList');
+      const empty = document.getElementById('overlayListEmpty');
+      list.querySelectorAll('.overlay-item').forEach(el => el.remove());
+      empty.style.display = state.overlays.length ? 'none' : 'block';
+
+      state.overlays.forEach(ov => {
+        const el = document.createElement('div');
+        el.className = 'overlay-item';
+        el.innerHTML = `
+          <div style="width:10px;height:10px;background:${ov.color};border-radius:50%;flex-shrink:0;"></div>
+          <div class="oi-text">"${ov.text}"</div>
+          <div class="oi-time">${formatTime(ov.start)}–${formatTime(ov.end)}</div>
+          <button class="clip-remove" onclick="removeOverlay(${ov.id})">✕</button>
+        `;
+        list.appendChild(el);
+      });
+    }
+
+    function removeOverlay(id) {
+      state.overlays = state.overlays.filter(o => o.id !== id);
+      renderOverlayList();
+    }
+
+    // ─── AUDIO ────────────────────────────────────────────────────────────────
+    function toggleAudio() {
+      state.audioEnabled = !state.audioEnabled;
+      const t = document.getElementById('audioToggle');
+      t.classList.toggle('on', state.audioEnabled);
+    }
+
+    document.getElementById('volumeSlider').addEventListener('input', function() {
+      state.volume = this.value;
+      document.getElementById('volumeLabel').textContent = this.value + '%';
+    });
+
+    function loadMusic(input) {
+      const file = input.files[0];
+      if (!file) return;
+      state.musicFile = file;
+      document.getElementById('musicInfo').textContent = `🎵 ${file.name} (${(file.size/1024/1024).toFixed(1)} MB)`;
+      document.getElementById('musicInfo').classList.remove('hidden');
+      showToast(`✅ Music loaded: ${file.name}`, 'success');
+    }
+
+    // ─── EXPORT ───────────────────────────────────────────────────────────────
+    function updateSmackBtn() {
+      document.getElementById('smackBtn').disabled = state.clips.length === 0;
+    }
+
+    function openExportModal() {
+      if (state.clips.length === 0) return;
+      document.getElementById('ffmpegWarning').style.display = 'block';
+      document.getElementById('exportModal').classList.add('open');
+    }
+
+    function closeExportModal() {
+      document.getElementById('exportModal').classList.remove('open');
+    }
+
+    function selectQuality(el) {
+      document.querySelectorAll('.export-option').forEach(o => o.classList.remove('selected'));
+      el.classList.add('selected');
+      state.exportQuality = el.dataset.quality;
+    }
+
+    async function startExport() {
+      closeExportModal();
+      showProgress('Loading video processor...', 5);
+
+      try {
+        await loadFFmpeg();
+        await processVideos();
+      } catch (err) {
+        hideProgress();
+        console.error(err);
+        showToast('❌ Export failed: ' + (err.message || err), 'error');
+      }
+    }
+
+    async function loadFFmpeg() {
+      if (state.ffmpegLoaded) return;
+      showProgress('Loading FFmpeg (first time may take ~30s)...', 10);
+
+      const { createFFmpeg, fetchFile } = await import('https://unpkg.com/@ffmpeg/ffmpeg@0.11.6/dist/ffmpeg.esm.js');
+      ffmpeg = createFFmpeg({
+        log: true,
+        progress: ({ ratio }) => {
+          const pct = Math.round(10 + ratio * 80);
+          showProgress('Processing video...', pct);
+        }
+      });
+      await ffmpeg.load();
+      state.ffmpegLoaded = true;
+      window._fetchFile = fetchFile;
+    }
+
+    async function processVideos() {
+      const fetchFile = window._fetchFile;
+
+      showProgress('Reading clip files...', 15);
+      const inputFiles = [];
+
+      for (let i = 0; i < state.clips.length; i++) {
+        const clip = state.clips[i];
+        const ext = clip.file.name.split('.').pop() || 'mp4';
+        const fname = `input${i}.${ext}`;
+        ffmpeg.FS('writeFile', fname, await fetchFile(clip.file));
+        inputFiles.push({ fname, clip });
+      }
+
+      showProgress('Trimming clips...', 30);
+
+      const trimmedFiles = [];
+      for (let i = 0; i < inputFiles.length; i++) {
+        const { fname, clip } = inputFiles[i];
+        const outname = `trimmed${i}.mp4`;
+        const duration = clip.trimEnd - clip.trimStart;
+
+        const scaleFilter = {
+          high: 'scale=1920:-2',
+          medium: 'scale=1280:-2',
+          small: 'scale=854:-2',
+        }[state.exportQuality];
+
+        // Build audio filter chain — include noise reduction if enabled on this clip
+        let audioFilter = `volume=${state.volume / 100}`;
+        if (state.audioEnabled && clip.noiseReduction) {
+          // noiseMag array stored — estimate dB floor from its average energy
+          // for afftdn (FFT denoiser). No gain, no EQ boosts — pure subtraction.
+          let nfDB = -25; // fallback
+          if (clip.noiseProfile?.noiseMag) {
+            const mag = clip.noiseProfile.noiseMag;
+            let sumSq = 0;
+            for (let i = 0; i < mag.length; i++) sumSq += mag[i] * mag[i];
+            const rms = Math.sqrt(sumSq / mag.length);
+            nfDB = Math.max(-80, Math.min(-10, 20 * Math.log10(Math.max(rms, 1e-10))));
+          }
+          audioFilter = [
+            `volume=${state.volume / 100}`,
+            `afftdn=nf=${nfDB.toFixed(1)}:nt=w:om=o`,
+          ].join(',');
+        }
+
+        await ffmpeg.run(
+          '-ss', String(clip.trimStart),
+          '-i', fname,
+          '-t', String(duration),
+          '-vf', scaleFilter,
+          '-c:v', 'libx264',
+          '-preset', 'fast',
+          '-crf', state.exportQuality === 'high' ? '20' : state.exportQuality === 'medium' ? '24' : '28',
+          '-c:a', state.audioEnabled ? 'aac' : 'an',
+          '-af', state.audioEnabled ? audioFilter : 'anull',
+          '-y', outname
+        );
+        trimmedFiles.push(outname);
+      }
+
+      showProgress('Merging clips...', 60);
+
+      let finalFile;
+      if (trimmedFiles.length === 1) {
+        finalFile = trimmedFiles[0];
+      } else {
+        // Create concat list
+        const concatList = trimmedFiles.map(f => `file '${f}'`).join('\n');
+        ffmpeg.FS('writeFile', 'concat.txt', concatList);
+        await ffmpeg.run(
+          '-f', 'concat',
+          '-safe', '0',
+          '-i', 'concat.txt',
+          '-c', 'copy',
+          '-y', 'merged.mp4'
+        );
+        finalFile = 'merged.mp4';
+      }
+
+      // Apply text overlays if any
+      if (state.overlays.length > 0) {
+        showProgress('Adding text overlays...', 75);
+        const sizeMap = { small: 24, medium: 36, large: 52, xlarge: 72 };
+        const posMap = {
+          top: 'x=(w-text_w)/2:y=40',
+          center: 'x=(w-text_w)/2:y=(h-text_h)/2',
+          bottom: 'x=(w-text_w)/2:y=h-text_h-40',
+        };
+
+        let filterStr = state.overlays.map(ov => {
+          const sz = sizeMap[ov.size] || 36;
+          const color = ov.color.replace('#', '');
+          const pos = posMap[ov.position] || posMap.bottom;
+          const text = ov.text.replace(/'/g, "\\'").replace(/:/g, '\\:');
+          return `drawtext=text='${text}':fontsize=${sz}:fontcolor=0x${color}:${pos}:enable='between(t,${ov.start},${ov.end})'`;
+        }).join(',');
+
+        await ffmpeg.run(
+          '-i', finalFile,
+          '-vf', filterStr,
+          '-c:a', 'copy',
+          '-y', 'with_text.mp4'
+        );
+        finalFile = 'with_text.mp4';
+      }
+
+      showProgress('Finishing up...', 90);
+
+      // Read output
+      const data = ffmpeg.FS('readFile', finalFile);
+      const blob = new Blob([data.buffer], { type: 'video/mp4' });
+      const url = URL.createObjectURL(blob);
+
+      showProgress('Done!', 100);
+      await new Promise(r => setTimeout(r, 600));
+      hideProgress();
+
+      // Trigger download
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'smack-video.mp4';
+      a.click();
+
+      showToast('🎉 Video exported! Check your downloads.', 'success');
+    }
+
+    // ─── ZOOM ──────────────────────────────────────────────────────────────────
+    function zoomAroundPlayhead(newScale) {
+      const scroll = document.getElementById('timelineScroll');
+
+      // Where is the playhead right now in pixels (absolute, within the track)?
+      const playheadPx = globalTimeToPx(state.playheadGlobalTime || 0);
+
+      // How far from the left edge of the *visible* scroll area is the playhead?
+      const playheadOffsetInView = playheadPx - scroll.scrollLeft;
+
+      // Apply new scale and re-render (this recomputes all pixel positions)
+      state.timelineScale = newScale;
+      renderTimeline();
+
+      // After render, find where the playhead is now at the new scale
+      const newPlayheadPx = globalTimeToPx(state.playheadGlobalTime || 0);
+
+      // Scroll so the playhead stays at the same visual position in the viewport
+      scroll.scrollLeft = newPlayheadPx - playheadOffsetInView;
+    }
+
+    function zoomIn() {
+      zoomAroundPlayhead(Math.min(state.timelineScale * 1.6, 4000));
+    }
+
+    function zoomOut() {
+      zoomAroundPlayhead(Math.max(state.timelineScale / 1.6, 2));
+    }
+
+    // ─── CUT AT PLAYHEAD / SELECTION ──────────────────────────────────────────
+    function cutAtPlayhead() {
+      // If there's an active selection, cut at both edges
+      if (state.selection) {
+        const { startTime, endTime } = state.selection;
+        cutAllClipsAtGlobalTime(startTime);
+        rebuildClipLayout();
+        cutAllClipsAtGlobalTime(endTime);
+        clearSelection();
+        renderClipList();
+        renderTimeline();
+        updateToolbarBtns();
+        showToast(`✂️ Cut at ${formatTime(startTime)} & ${formatTime(endTime)}`, 'success');
+        return;
+      }
+
+      // Cut at playhead — use global playhead time, not raw vid.currentTime
+      if (!state.selectedClip) return;
+      const globalCut = state.playheadGlobalTime || 0;
+      const entry = clipLayout.find(l => l.clip.id === state.selectedClip.id);
+      if (!entry) return;
+
+      // Is the playhead actually inside this clip?
+      if (globalCut <= entry.globalTimeStart || globalCut >= entry.globalTimeStart + entry.duration) {
+        showToast('⚠️ Playhead must be inside the selected clip to cut', 'error');
+        return;
+      }
+
+      const localCut = entry.clip.trimStart + (globalCut - entry.globalTimeStart);
+      pushHistory();
+      splitClipAt(entry.clip, localCut);
+      renderClipList();
+      renderTimeline();
+      updateToolbarBtns();
+      showToast(`✂️ Cut at ${formatTime(globalCut)}`, 'success');
+    }
+
+    function splitClipAt(clip, localCutTime) {
+      const clipA = { ...clip, id: Date.now(),              name: clip.name + ' A', trimEnd:   localCutTime };
+      const clipB = { ...clip, id: Date.now() + Math.random(), name: clip.name + ' B', trimStart: localCutTime };
+
+      // Both halves share the same source file — carry the decoded buffer forward
+      // so generateWaveform doesn't have to re-decode from disk
+      clipA.audioBuffer = clip.audioBuffer ?? null;
+      clipB.audioBuffer = clip.audioBuffer ?? null;
+
+      // Clear peaks on both halves — generateWaveform will re-sample from
+      // each clip's exact trimStart/trimEnd so the waveform is accurate
+      clipA.waveformPeaks    = null;
+      clipA.waveformPeaksMin = null;
+      clipB.waveformPeaks    = null;
+      clipB.waveformPeaksMin = null;
+
+      // Clear denoised buffer (was for the full original clip)
+      clipA.denoisedBuffer = null;  clipA.noiseReduction = false;
+      clipB.denoisedBuffer = null;  clipB.noiseReduction = false;
+
+      const idx = state.clips.findIndex(c => c.id === clip.id);
+      state.clips.splice(idx, 1, clipA, clipB);
+      state.selectedClip = clipB;
+
+      // Re-sample waveforms async — audioBuffer already cached so this is fast
+      generateWaveform(clipA);
+      generateWaveform(clipB);
+
+      return clipB;
+    }
+
+    function rebuildClipLayout() {
+      const SCALE = state.timelineScale;
+      const PADDING = 16;
+      const GAP = 4;
+      clipLayout = [];
+      let cursorPx = PADDING;
+      let globalTime = 0;
+      state.clips.forEach(clip => {
+        const duration = clip.trimEnd - clip.trimStart;
+        const width = Math.max(duration * SCALE, 90);
+        clipLayout.push({ clip, pixelStart: cursorPx, pixelWidth: width, globalTimeStart: globalTime, duration });
+        cursorPx += width + GAP;
+        globalTime += duration;
+      });
+    }
+
+    function cutAllClipsAtGlobalTime(globalT) {
+      // Find which clip this global time falls in and split it
+      for (const entry of clipLayout) {
+        const { clip, globalTimeStart, duration } = entry;
+        if (globalT > globalTimeStart && globalT < globalTimeStart + duration) {
+          const localT = clip.trimStart + (globalT - globalTimeStart);
+          pushHistory();
+          splitClipAt(clip, localT);
+          return;
+        }
+      }
+    }
+
+    // ─── KEYBOARD SHORTCUTS ────────────────────────────────────────────────────
+    document.addEventListener('keydown', e => {
+      // Cmd+Z / Ctrl+Z — undo (works even in inputs for safety)
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z') {
+        e.preventDefault();
+        undo();
+        return;
+      }
+
+      // Don't fire shortcuts when typing in an input or textarea
+      const tag = document.activeElement?.tagName?.toLowerCase();
+      if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
+
+      // Don't fire if a modal is open
+      if (document.querySelector('.modal-backdrop.open')) return;
+
+      switch (e.key) {
+        case ' ':
+          e.preventDefault();
+          playPreview();
+          break;
+        case 't':
+        case 'T':
+          e.preventDefault();
+          zoomIn();
+          break;
+        case 'r':
+        case 'R':
+          e.preventDefault();
+          zoomOut();
+          break;
+        case 'x':
+        case 'X':
+          e.preventDefault();
+          if (state.selection) {
+            deleteSelection();
+          } else if (state.selectedClip) {
+            pushHistory();
+            state.clips = state.clips.filter(c => c.id !== state.selectedClip.id);
+            state.selectedClip = null;
+            renderClipList();
+            renderTimeline();
+            updateSmackBtn();
+            updateToolbarBtns();
+            showToast('🗑 Clip deleted', 'success');
+          }
+          break;
+        case 'Escape':
+          clearSelection();
+          break;
+        case 'Delete':
+        case 'Backspace':
+          if (state.selection) {
+            e.preventDefault();
+            deleteSelection();
+          }
+          break;
+      }
+    });
+
+    // ─── PROGRESS ─────────────────────────────────────────────────────────────
+    function showProgress(msg, pct) {
+      document.getElementById('progressOverlay').classList.add('open');
+      document.getElementById('progressMessage').textContent = msg;
+      document.getElementById('progressFill').style.width = pct + '%';
+    }
+
+    function hideProgress() {
+      document.getElementById('progressOverlay').classList.remove('open');
+    }
+
+    // ─── TOAST ────────────────────────────────────────────────────────────────
+    let toastTimer;
+    function showToast(msg, type = 'info') {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.className = 'toast show ' + type;
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => t.classList.remove('show'), 3000);
+    }
+  </script>
+
+</body>
+</html>
