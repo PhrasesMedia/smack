@@ -243,6 +243,95 @@
     }
     .clip-meta { font-size: 0.72rem; color: var(--muted); margin-top: 2px; }
 
+    /* Role tag on clip items */
+    .clip-role-toggle {
+      display: flex;
+      gap: 2px;
+      margin-left: auto;
+      margin-right: 6px;
+      flex-shrink: 0;
+    }
+    .role-tag {
+      font-size: 0.6rem;
+      font-weight: 800;
+      letter-spacing: 0.8px;
+      padding: 3px 7px;
+      border-radius: 4px;
+      border: 1px solid transparent;
+      cursor: pointer;
+      opacity: 0.35;
+      transition: all 0.12s;
+      background: var(--surface2);
+      color: var(--muted);
+    }
+    .role-tag:hover { opacity: 0.7; }
+    .role-tag.active-host  { background: rgba(60,160,255,0.15); border-color: rgba(60,160,255,0.6); color: #60b8ff; opacity: 1; }
+    .role-tag.active-guest { background: rgba(180,100,255,0.15); border-color: rgba(180,100,255,0.6); color: #c878ff; opacity: 1; }
+
+    /* Guest Switch panel */
+    .autoswitch-panel {
+      margin: 12px 4px 0;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px;
+    }
+    .autoswitch-header {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 8px;
+    }
+    .autoswitch-hint { font-size: 0.7rem; color: var(--muted); font-weight: 400; }
+    .autoswitch-legend {
+      font-size: 0.72rem;
+      color: var(--muted);
+      margin-bottom: 10px;
+    }
+    .role-pill {
+      display: inline-block;
+      font-size: 0.62rem;
+      font-weight: 800;
+      padding: 2px 7px;
+      border-radius: 4px;
+      letter-spacing: 0.6px;
+    }
+    .role-pill.host  { background: rgba(60,160,255,0.2);  color: #60b8ff; }
+    .role-pill.guest { background: rgba(180,100,255,0.2); color: #c878ff; }
+    .autoswitch-settings { margin-bottom: 10px; }
+    .autoswitch-settings label {
+      font-size: 0.72rem;
+      color: var(--muted);
+      display: block;
+      margin-bottom: 5px;
+    }
+    .autoswitch-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.78rem;
+      color: var(--text);
+    }
+    .autoswitch-row input[type=range] { flex: 1; accent-color: var(--orange); }
+    .btn-autoswitch {
+      width: 100%;
+      background: linear-gradient(135deg, #5a20d0, #9c50f0);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 10px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 0.82rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+    .btn-autoswitch:hover { opacity: 0.85; }
+    .btn-autoswitch:disabled { opacity: 0.4; cursor: not-allowed; }
+
     .clip-remove {
       background: none;
       border: none;
@@ -1198,6 +1287,25 @@
             No clips yet — add some above!
           </div>
         </div>
+
+        <!-- AUTO-SWITCH PANEL -->
+        <div class="autoswitch-panel" id="autoswitchPanel" style="display:none;">
+          <div class="autoswitch-header">
+            <span>🎙 Guest Switch</span>
+            <span class="autoswitch-hint">Tag host & guest, then auto-cut</span>
+          </div>
+          <div class="autoswitch-legend">
+            <span class="role-pill host">HOST</span> speaks first &nbsp;·&nbsp; <span class="role-pill guest">GUEST</span> triggers cut
+          </div>
+          <div class="autoswitch-settings">
+            <label>Min speech duration</label>
+            <div class="autoswitch-row">
+              <input type="range" id="switchThreshold" min="0.3" max="3" step="0.1" value="1.2" oninput="document.getElementById('switchThresholdVal').textContent=this.value+'s'">
+              <span id="switchThresholdVal">1.2s</span>
+            </div>
+          </div>
+          <button class="btn-autoswitch" id="autoswitchBtn" onclick="runGuestSwitch()">⚡ Auto-Switch</button>
+        </div>
       </div>
 
       <!-- TEXT TAB -->
@@ -1573,6 +1681,7 @@
           trimStart: c.trimStart, trimEnd: c.trimEnd,
           fileName: c.file.name, fileSize: c.file.size, fileType: c.file.type,
           noiseReduction: c.noiseReduction || false,
+          role: c.role || null,
         }));
         await dbPut(STORE_META, 'clips', meta);
 
@@ -1608,6 +1717,7 @@
             id: m.id, file, url, name: m.name, duration: m.duration,
             trimStart: m.trimStart, trimEnd: m.trimEnd,
             noiseReduction: m.noiseReduction,
+            role: m.role || null,
             waveformPeaks: null, waveformPeaksMin: null, audioBuffer: null,
           };
           restored.push(clip);
@@ -1627,7 +1737,8 @@
 
         showToast(`↩ Restored ${restored.length} clip${restored.length > 1 ? 's' : ''} from last session`, 'info');
       } catch (err) {
-        console.warn('Project restore failed:', err);
+        console.error('Project restore failed:', err);
+        showToast('⚠️ Could not restore last session: ' + err.message, 'error');
       }
     }
 
@@ -1637,6 +1748,139 @@
       await dbClear(STORE_FILE);
     }
 
+    // ─── GUEST SWITCH ────────────────────────────────────────────────────────
+    // Analyses host + guest audio tracks, finds every window where the guest
+    // is actively speaking (RMS above dynamic threshold for minSpeechDuration seconds),
+    // then splits + interleaves the two clips on the timeline automatically.
+
+    async function runGuestSwitch() {
+      const host  = state.clips.find(c => c.role === 'host');
+      const guest = state.clips.find(c => c.role === 'guest');
+
+      if (!host || !guest) {
+        showToast('⚠️ Tag one clip as Host and one as Guest first', 'error');
+        return;
+      }
+
+      const btn = document.getElementById('autoswitchBtn');
+      btn.disabled = true;
+      btn.textContent = '⏳ Analysing…';
+
+      try {
+        const minSpeech = parseFloat(document.getElementById('switchThreshold').value) || 1.2;
+
+        // Decode audio (use cache if available)
+        if (!host.audioBuffer) {
+          host.audioBuffer = await audioCtx.decodeAudioData(await host.file.arrayBuffer());
+        }
+        if (!guest.audioBuffer) {
+          guest.audioBuffer = await audioCtx.decodeAudioData(await guest.file.arrayBuffer());
+        }
+
+        // ── RMS energy curve at 10ms frames ──────────────────────────────
+        function getRMSCurve(audioBuffer, trimStart, trimEnd) {
+          const sr        = audioBuffer.sampleRate;
+          const frameSize = Math.round(sr * 0.01);
+          const start     = Math.floor(trimStart * sr);
+          const end       = Math.ceil(trimEnd * sr);
+          const numCh     = audioBuffer.numberOfChannels;
+          const mono      = new Float32Array(end - start);
+          for (let ch = 0; ch < numCh; ch++) {
+            const data = audioBuffer.getChannelData(ch);
+            for (let i = 0; i < mono.length; i++) mono[i] += data[start + i] / numCh;
+          }
+          const frames = Math.floor(mono.length / frameSize);
+          const rms    = new Float32Array(frames);
+          for (let f = 0; f < frames; f++) {
+            let sum = 0;
+            for (let i = 0; i < frameSize; i++) { const v = mono[f * frameSize + i]; sum += v * v; }
+            rms[f] = Math.sqrt(sum / frameSize);
+          }
+          return rms;
+        }
+
+        const guestRMS = getRMSCurve(guest.audioBuffer, guest.trimStart, guest.trimEnd);
+        const hostRMS  = getRMSCurve(host.audioBuffer,  host.trimStart,  host.trimEnd);
+        const frames   = Math.min(hostRMS.length, guestRMS.length);
+
+        // Dynamic threshold: 3× the 20th-percentile noise floor
+        function threshold(rms) {
+          const s = Float32Array.from(rms).sort();
+          return s[Math.floor(s.length * 0.2)] * 3;
+        }
+        const guestThresh = threshold(guestRMS);
+
+        // Mark frames where guest is clearly speaking
+        const FRAME_MS   = 10;
+        const minFrames  = Math.round((minSpeech * 1000) / FRAME_MS);
+        const holdFrames = Math.round(500 / FRAME_MS); // 500ms hold to avoid cutting mid-breath
+
+        const guestOn = new Uint8Array(frames);
+        let runLen = 0;
+        for (let f = 0; f < frames; f++) {
+          if (guestRMS[f] > guestThresh) { runLen++; } else { runLen = 0; }
+          if (runLen >= minFrames) for (let b = f - runLen + 1; b <= f; b++) guestOn[b] = 1;
+        }
+        // Apply hold-off
+        let hold = 0;
+        for (let f = 0; f < frames; f++) {
+          if (guestOn[f]) { hold = holdFrames; }
+          else if (hold > 0) { guestOn[f] = 1; hold--; }
+        }
+
+        // Collapse into segments
+        const segments = [];
+        let cur = guestOn[0] ? 'guest' : 'host', segStart = 0;
+        for (let f = 1; f < frames; f++) {
+          const spk = guestOn[f] ? 'guest' : 'host';
+          if (spk !== cur) {
+            segments.push({ speaker: cur, start: segStart * 0.01, end: f * 0.01 });
+            cur = spk; segStart = f;
+          }
+        }
+        segments.push({ speaker: cur, start: segStart * 0.01, end: frames * 0.01 });
+
+        if (segments.length <= 1) {
+          showToast('⚠️ No speaker changes detected — try lowering the min duration', 'error');
+          return;
+        }
+
+        // Build interleaved clips
+        pushHistory();
+        const newClips = [];
+        for (const seg of segments) {
+          const src        = seg.speaker === 'guest' ? guest : host;
+          const trimStart  = Math.max(src.trimStart, Math.min(src.trimStart + seg.start, src.trimEnd - 0.1));
+          const trimEnd    = Math.min(src.trimEnd,   Math.max(src.trimStart + seg.end,   trimStart + 0.1));
+          newClips.push({
+            ...src,
+            id: Date.now() + Math.random(),
+            trimStart, trimEnd,
+            name:          `${src.name} [${seg.speaker}]`,
+            waveformPeaks: null, waveformPeaksMin: null,
+            audioBuffer:   src.audioBuffer,
+            denoisedBuffer: null, noiseReduction: false,
+          });
+        }
+
+        state.clips        = newClips;
+        state.selectedClip = newClips[0] || null;
+        renderClipList();
+        renderTimeline();
+        updateSmackBtn();
+        updateToolbarBtns();
+        newClips.forEach(c => generateWaveform(c));
+        scheduleProjectSave();
+        showToast(`🎙 Done! ${segments.length} cuts — host/guest interleaved`, 'success');
+
+      } catch (err) {
+        console.error('Guest Switch:', err);
+        showToast('❌ Guest Switch failed: ' + err.message, 'error');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '⚡ Auto-Switch';
+      }
+    }
 
     function pushHistory() {
       const snapshot = state.clips.map(c => ({ ...c }));
@@ -2177,7 +2421,7 @@
           updateSmackBtn();
           showToast(`✅ Added: ${clip.name}`, 'success');
           generateWaveform(clip);
-          scheduleProjectSave();
+          saveProject(); // save immediately when a file is added (don't debounce)
         };
       });
     }
@@ -2197,28 +2441,46 @@
 
     // ─── CLIP LIST ────────────────────────────────────────────────────────────
     function renderClipList() {
-      const list = document.getElementById('clipList');
+      const list  = document.getElementById('clipList');
       const empty = document.getElementById('clipListEmpty');
-
-      // Clear everything except the empty message
       list.querySelectorAll('.clip-item').forEach(el => el.remove());
       empty.style.display = state.clips.length ? 'none' : 'block';
 
-      state.clips.forEach((clip, i) => {
+      state.clips.forEach((clip) => {
         const el = document.createElement('div');
         el.className = 'clip-item' + (state.selectedClip?.id === clip.id ? ' selected' : '');
         el.dataset.id = clip.id;
+        const hostActive  = clip.role === 'host'  ? 'active-host'  : '';
+        const guestActive = clip.role === 'guest' ? 'active-guest' : '';
         el.innerHTML = `
           <div class="clip-thumb">🎬</div>
           <div class="clip-info">
             <div class="clip-name" title="${clip.name}">${clip.name}</div>
             <div class="clip-meta">${formatTime(clip.trimEnd - clip.trimStart)} &nbsp;·&nbsp; ${(clip.file.size/1024/1024).toFixed(1)} MB</div>
           </div>
+          <div class="clip-role-toggle">
+            <button class="role-tag ${hostActive}"  onclick="setClipRole('${clip.id}','host',event)"  title="Mark as Host">H</button>
+            <button class="role-tag ${guestActive}" onclick="setClipRole('${clip.id}','guest',event)" title="Mark as Guest">G</button>
+          </div>
           <button class="clip-remove" onclick="removeClip('${clip.id}', event)" title="Remove">✕</button>
         `;
         el.addEventListener('click', () => selectClip(clip));
         list.appendChild(el);
       });
+
+      // Show Auto-Switch panel once there are 2+ clips
+      const panel = document.getElementById('autoswitchPanel');
+      if (panel) panel.style.display = state.clips.length >= 2 ? 'block' : 'none';
+    }
+
+    function setClipRole(id, role, e) {
+      e.stopPropagation();
+      const clip = state.clips.find(c => String(c.id) === String(id));
+      if (!clip) return;
+      // Toggle off if already set, otherwise assign
+      clip.role = clip.role === role ? null : role;
+      renderClipList();
+      scheduleProjectSave();
     }
 
     function removeClip(id, e) {
@@ -3528,6 +3790,12 @@
     }
 
     // ─── STARTUP ──────────────────────────────────────────────────────────────
+    // Flush any pending debounced save before the page unloads (reload, close, etc.)
+    window.addEventListener('beforeunload', () => {
+      clearTimeout(_saveTimer);
+      if (state.clips.length) saveProject(); // fire immediately, browser waits briefly
+    });
+
     // Restore any saved project (handles COI service worker reload + manual reloads)
     restoreProject();
   </script>
