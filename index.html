@@ -1493,12 +1493,156 @@
 
     let ffmpeg = null;
 
-    // ─── UNDO ──────────────────────────────────────────────────────────────────
+    // ─── PROJECT PERSISTENCE (IndexedDB) ─────────────────────────────────────
+    // Saves project to IndexedDB on every clip change so reloads don't wipe work.
+    // File objects are stored as ArrayBuffers (the only serialisable form).
+    // On load, we reconstruct File + ObjectURL from the stored bytes.
+
+    const DB_NAME    = 'smack-project';
+    const DB_VERSION = 1;
+    const STORE_META = 'meta';   // clip metadata (trimStart/trimEnd/name/etc)
+    const STORE_FILE = 'files';  // raw file bytes keyed by clip id
+
+    let _db = null;
+
+    function openDB() {
+      if (_db) return Promise.resolve(_db);
+      return new Promise((res, rej) => {
+        const req = indexedDB.open(DB_NAME, DB_VERSION);
+        req.onupgradeneeded = e => {
+          const db = e.target.result;
+          if (!db.objectStoreNames.contains(STORE_META)) db.createObjectStore(STORE_META);
+          if (!db.objectStoreNames.contains(STORE_FILE)) db.createObjectStore(STORE_FILE);
+        };
+        req.onsuccess = e => { _db = e.target.result; res(_db); };
+        req.onerror   = () => rej(req.error);
+      });
+    }
+
+    function dbPut(store, key, value) {
+      return openDB().then(db => new Promise((res, rej) => {
+        const tx  = db.transaction(store, 'readwrite');
+        const req = tx.objectStore(store).put(value, key);
+        req.onsuccess = () => res();
+        req.onerror   = () => rej(req.error);
+      }));
+    }
+
+    function dbGet(store, key) {
+      return openDB().then(db => new Promise((res, rej) => {
+        const tx  = db.transaction(store, 'readonly');
+        const req = tx.objectStore(store).get(key);
+        req.onsuccess = () => res(req.result);
+        req.onerror   = () => rej(req.error);
+      }));
+    }
+
+    function dbGetAll(store) {
+      return openDB().then(db => new Promise((res, rej) => {
+        const tx  = db.transaction(store, 'readonly');
+        const all = {};
+        tx.objectStore(store).openCursor().onsuccess = e => {
+          const cur = e.target.result;
+          if (cur) { all[cur.key] = cur.value; cur.continue(); }
+          else res(all);
+        };
+        tx.onerror = () => rej(tx.error);
+      }));
+    }
+
+    function dbClear(store) {
+      return openDB().then(db => new Promise((res, rej) => {
+        const tx  = db.transaction(store, 'readwrite');
+        tx.objectStore(store).clear().onsuccess = () => res();
+        tx.onerror = () => rej(tx.error);
+      }));
+    }
+
+    // Serialise clips to DB — debounced so rapid edits don't thrash
+    let _saveTimer = null;
+    function scheduleProjectSave() {
+      clearTimeout(_saveTimer);
+      _saveTimer = setTimeout(saveProject, 600);
+    }
+
+    async function saveProject() {
+      try {
+        // Save metadata (everything except File/url/waveform/audioBuffer which can't serialise cleanly)
+        const meta = state.clips.map(c => ({
+          id: c.id, name: c.name, duration: c.duration,
+          trimStart: c.trimStart, trimEnd: c.trimEnd,
+          fileName: c.file.name, fileSize: c.file.size, fileType: c.file.type,
+          noiseReduction: c.noiseReduction || false,
+        }));
+        await dbPut(STORE_META, 'clips', meta);
+
+        // Save file bytes for any clip whose file isn't yet persisted
+        for (const clip of state.clips) {
+          const existing = await dbGet(STORE_FILE, String(clip.id));
+          if (!existing) {
+            const buf = await clip.file.arrayBuffer();
+            await dbPut(STORE_FILE, String(clip.id), { buf, name: clip.file.name, type: clip.file.type });
+          }
+        }
+      } catch (err) {
+        console.warn('Project save failed:', err);
+      }
+    }
+
+    async function restoreProject() {
+      try {
+        const meta = await dbGet(STORE_META, 'clips');
+        if (!meta || meta.length === 0) return;
+
+        const fileStore = await dbGetAll(STORE_FILE);
+        const restored  = [];
+
+        for (const m of meta) {
+          const stored = fileStore[String(m.id)];
+          if (!stored) continue; // file bytes missing — skip
+
+          const file = new File([stored.buf], stored.name, { type: stored.type });
+          const url  = URL.createObjectURL(file);
+
+          const clip = {
+            id: m.id, file, url, name: m.name, duration: m.duration,
+            trimStart: m.trimStart, trimEnd: m.trimEnd,
+            noiseReduction: m.noiseReduction,
+            waveformPeaks: null, waveformPeaksMin: null, audioBuffer: null,
+          };
+          restored.push(clip);
+        }
+
+        if (restored.length === 0) return;
+
+        state.clips = restored;
+        state.selectedClip = restored[0];
+        renderClipList();
+        renderTimeline();
+        updateSmackBtn();
+        updateToolbarBtns();
+
+        // Regenerate waveforms in the background
+        restored.forEach(c => generateWaveform(c));
+
+        showToast(`↩ Restored ${restored.length} clip${restored.length > 1 ? 's' : ''} from last session`, 'info');
+      } catch (err) {
+        console.warn('Project restore failed:', err);
+      }
+    }
+
+    // Clear persisted project (called by New Project)
+    async function clearPersistedProject() {
+      await dbClear(STORE_META);
+      await dbClear(STORE_FILE);
+    }
+
+
     function pushHistory() {
-      // Deep-clone clips (preserve file/url references, clone scalar fields)
       const snapshot = state.clips.map(c => ({ ...c }));
       state.history.push(snapshot);
-      if (state.history.length > 50) state.history.shift(); // cap at 50
+      if (state.history.length > 50) state.history.shift();
+      scheduleProjectSave(); // persist on every undoable action
     }
 
     function undo() {
@@ -2032,8 +2176,8 @@
           renderTimeline();
           updateSmackBtn();
           showToast(`✅ Added: ${clip.name}`, 'success');
-          // Generate waveform asynchronously — updates canvas when ready
           generateWaveform(clip);
+          scheduleProjectSave();
         };
       });
     }
@@ -2092,6 +2236,7 @@
       state.clips = [];
       state.overlays = [];
       state.selectedClip = null;
+      clearPersistedProject(); // wipe IndexedDB so next reload starts fresh
       renderClipList();
       renderTimeline();
       renderOverlayList();
@@ -2848,7 +2993,8 @@
       trimClip.waveformPeaksMin = null;
       renderTimeline();
       renderClipList();
-      generateWaveform(trimClip); // async — redraws canvas when done
+      generateWaveform(trimClip);
+      scheduleProjectSave();
       closeTrimModal();
       showToast(`✅ Trimmed: ${formatTime(s)} → ${formatTime(e)}`, 'success');
     }
@@ -3380,6 +3526,10 @@
       clearTimeout(toastTimer);
       toastTimer = setTimeout(() => t.classList.remove('show'), 3000);
     }
+
+    // ─── STARTUP ──────────────────────────────────────────────────────────────
+    // Restore any saved project (handles COI service worker reload + manual reloads)
+    restoreProject();
   </script>
 
 </body>
