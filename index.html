@@ -661,7 +661,7 @@
 
     /* ─── TIMELINE ────────────────────────────────── */
     .timeline-container {
-      height: 210px;
+      height: 280px;
       border-top: 1px solid var(--border);
       background: var(--surface);
       display: flex;
@@ -730,12 +730,62 @@
     .timeline-track {
       height: 100%;
       min-width: 100%;
-      padding: 12px 16px;
+      padding: 0;
       display: flex;
-      align-items: center;
-      gap: 4px;
+      flex-direction: column;
       position: relative;
       cursor: text;
+    }
+
+    /* Track row labels */
+    .tl-row-label {
+      position: absolute;
+      left: 0;
+      width: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.6rem;
+      font-weight: 800;
+      letter-spacing: 1px;
+      color: var(--muted);
+      z-index: 5;
+      pointer-events: none;
+    }
+
+    /* Two clip rows */
+    .tl-row {
+      position: relative;
+      flex: 1;
+      display: flex;
+      align-items: center;
+      padding: 8px 16px 8px 40px;
+      gap: 4px;
+      min-width: 100%;
+    }
+    .tl-row-v1 {
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+    }
+    .tl-row-v2 {
+      background: rgba(255,255,255,0.015);
+    }
+
+    /* Hand tool — pan mode */
+    .timeline-scroll.hand-mode          { cursor: grab; }
+    .timeline-scroll.hand-mode.panning  { cursor: grabbing; }
+    .timeline-scroll.hand-mode .tl-clip { cursor: grab; }
+    .timeline-scroll.hand-mode.panning .tl-clip { cursor: grabbing; }
+      background: rgba(180,100,255,0.07);
+      border: 1px dashed rgba(180,100,255,0.4);
+      border-radius: 4px;
+    }
+
+    /* V2 clips are absolutely positioned within the row */
+    .tl-row-v2 .tl-clip {
+      position: absolute;
+      top: 8px;
+      bottom: 8px;
+      height: auto;
     }
 
     /* ─── PLAYHEAD ────────────────────────────────── */
@@ -965,6 +1015,37 @@
     .tl-clip.active {
       border-color: var(--orange);
       box-shadow: 0 0 0 1px var(--orange);
+    }
+
+    /* V2 B-roll clips get purple tint */
+    .tl-clip.track-v2 {
+      border-color: rgba(180,100,255,0.6);
+      background: linear-gradient(180deg, #18103a 0%, #120d2e 100%);
+    }
+    .tl-clip.track-v2.active {
+      border-color: #c878ff;
+      box-shadow: 0 0 0 1px #c878ff;
+    }
+
+    .tl-clip-track-badge {
+      position: absolute;
+      top: 4px;
+      right: 28px;
+      font-size: 0.58rem;
+      font-weight: 800;
+      letter-spacing: 0.8px;
+      padding: 2px 5px;
+      border-radius: 3px;
+      background: rgba(180,100,255,0.25);
+      color: #c878ff;
+      pointer-events: none;
+      z-index: 3;
+    }
+
+    /* Clip being dragged across tracks */
+    .tl-clip.dragging-track {
+      opacity: 0.55;
+      cursor: grabbing !important;
     }
 
     .tl-clip-name {
@@ -1463,6 +1544,7 @@
             <button class="tl-btn" onclick="moveClipDown()" id="downBtn" disabled>Move →</button>
             <button class="tl-btn" onclick="zoomIn()" title="Zoom In (T)">🔍+ <kbd>T</kbd></button>
             <button class="tl-btn" onclick="zoomOut()" title="Zoom Out (R)">🔍− <kbd>R</kbd></button>
+            <button class="tl-btn" id="handToolBtn" onclick="toggleHandTool()" title="Hand Tool — pan the timeline (H)">✋ <kbd>H</kbd></button>
           </div>
           <div class="timecode" id="timecode">00:00:00</div>
         </div>
@@ -1476,7 +1558,16 @@
               <div class="sel-label end"   id="selLabelEnd"></div>
               <div class="sel-duration"    id="selDuration"></div>
             </div>
-            <div class="timeline-empty" id="timelineEmpty">Add clips from the sidebar to build your timeline →</div>
+            <!-- V1 track label -->
+            <div class="tl-row-label" style="top:0;height:50%;">V1</div>
+            <!-- V2 track label -->
+            <div class="tl-row-label" style="top:50%;height:50%;color:rgba(180,100,255,0.7);">V2</div>
+            <!-- Row 1: main sequential clips -->
+            <div class="tl-row tl-row-v1" id="tlRowV1">
+              <div class="timeline-empty" id="timelineEmpty">Add clips from the sidebar to build your timeline →</div>
+            </div>
+            <!-- Row 2: B-roll / positioned clips -->
+            <div class="tl-row tl-row-v2" id="tlRowV2"></div>
           </div>
         </div>
       </div>
@@ -1682,6 +1773,8 @@
           fileName: c.file.name, fileSize: c.file.size, fileType: c.file.type,
           noiseReduction: c.noiseReduction || false,
           role: c.role || null,
+          track: c.track || null,
+          trackStartTime: c.trackStartTime || null,
         }));
         await dbPut(STORE_META, 'clips', meta);
 
@@ -1718,6 +1811,8 @@
             trimStart: m.trimStart, trimEnd: m.trimEnd,
             noiseReduction: m.noiseReduction,
             role: m.role || null,
+            track: m.track || null,
+            trackStartTime: m.trackStartTime || null,
             waveformPeaks: null, waveformPeaksMin: null, audioBuffer: null,
           };
           restored.push(clip);
@@ -2569,90 +2664,175 @@
     let clipLayout = [];
 
     function renderTimeline() {
-      const track = document.getElementById('timelineTrack');
-      const empty = document.getElementById('timelineEmpty');
+      const rowV1 = document.getElementById('tlRowV1');
+      const rowV2 = document.getElementById('tlRowV2');
+      const empty  = document.getElementById('timelineEmpty');
 
-      track.querySelectorAll('.tl-clip').forEach(el => el.remove());
-      empty.style.display = state.clips.length ? 'none' : 'block';
+      rowV1.querySelectorAll('.tl-clip').forEach(el => el.remove());
+      rowV2.querySelectorAll('.tl-clip').forEach(el => el.remove());
+      empty.style.display = state.clips.filter(c => !c.track).length ? 'none' : 'block';
 
-      const SCALE = state.timelineScale;
-      const PADDING = 16; // matches track padding-left
-      const GAP = 4;
+      const SCALE   = state.timelineScale;
+      const PADDING = 40; // left padding (after labels)
+      const GAP     = 4;
 
       clipLayout = [];
-      let cursorPx = PADDING;
+      let cursorPx  = PADDING;
       let globalTime = 0;
 
-      state.clips.forEach((clip, i) => {
+      // ── V1: sequential clips ──────────────────────────────────────────────
+      state.clips.filter(c => !c.track).forEach(clip => {
         const duration = clip.trimEnd - clip.trimStart;
-        const width = Math.max(duration * SCALE, 90);
-
-        clipLayout.push({
-          clip,
-          pixelStart: cursorPx,
-          pixelWidth: width,
-          globalTimeStart: globalTime,
-          duration,
-        });
-
-        const el = document.createElement('div');
-        el.className = 'tl-clip' + (state.selectedClip?.id === clip.id ? ' active' : '');
-        el.style.width = width + 'px';
-        el.innerHTML = `
-          <div class="trim-handle left"></div>
-          <div class="tl-clip-name">${clip.name}</div>
-          <div class="tl-clip-duration">${formatTime(duration)}</div>
-          ${clip.noiseReduction
-            ? `<div class="tl-clip-denoise-badge">${clip.noiseProfile ? '🎙 LEARNED' : '🎙 DENOISE'}</div>`
-            : ''}
-          <canvas class="tl-clip-waveform ${clip.waveformPeaks ? '' : 'loading'}" data-clip-id="${clip.id}" height="48"></canvas>
-          <div class="trim-handle right"></div>
-        `;
-
-        // Always draw waveform — real peaks if available, placeholder if still loading
-        requestAnimationFrame(() => {
-          const canvas = el.querySelector('.tl-clip-waveform');
-          if (canvas) renderWaveformToCanvas(canvas, clip.waveformPeaks || null, clip.waveformPeaksMin || null, state.selectedClip?.id === clip.id);
-        });
-
-        // Click → seek OR drag → selection (handled at track level, see setupTrackInteraction)
-        el.addEventListener('mousedown', (e) => {
-          if (e.target.classList.contains('trim-handle')) return;
-          e.preventDefault();
-          startTrackInteraction(e, clip, globalTime);
-        });
-
-        track.appendChild(el);
-
-        cursorPx += width + GAP;
+        const width    = Math.max(duration * SCALE, 90);
+        const entry    = { clip, pixelStart: cursorPx, pixelWidth: width, globalTimeStart: globalTime, duration, track: 1 };
+        clipLayout.push(entry);
+        rowV1.appendChild(makeClipEl(clip, width, globalTime, false));
+        cursorPx  += width + GAP;
         globalTime += duration;
       });
 
-      // Show / hide playhead
+      // ── V2: positioned B-roll clips ───────────────────────────────────────
+      state.clips.filter(c => c.track === 2).forEach(clip => {
+        const duration = clip.trimEnd - clip.trimStart;
+        const width    = Math.max(duration * SCALE, 90);
+        const leftPx   = PADDING + (clip.trackStartTime || 0) * SCALE;
+        const entry    = { clip, pixelStart: leftPx, pixelWidth: width, globalTimeStart: clip.trackStartTime || 0, duration, track: 2 };
+        clipLayout.push(entry);
+        const el = makeClipEl(clip, width, clip.trackStartTime || 0, true);
+        el.style.left = leftPx + 'px';
+        rowV2.appendChild(el);
+      });
+
+      // ── Playhead & selection ──────────────────────────────────────────────
       const ph = document.getElementById('playhead');
       ph.style.display = state.clips.length ? 'block' : 'none';
-
-      // Reposition playhead at its current global time
       positionPlayhead(state.playheadGlobalTime || 0);
-
-      // Redraw selection region
       renderSelection();
 
-      // Refresh player bar total duration
-      const tot = clipLayout.reduce((s, e) => s + e.duration, 0);
+      const tot = clipLayout.filter(e => e.track === 1).reduce((s, e) => s + e.duration, 0);
       if (tot > 0) {
-        document.getElementById('playerDuration').textContent    = formatTime(tot);
-        document.getElementById('playerPlayBtn').disabled        = false;
+        document.getElementById('playerDuration').textContent = formatTime(tot);
+        document.getElementById('playerPlayBtn').disabled     = false;
         updatePlayerScrubberGlobal(state.playheadGlobalTime || 0);
       } else {
         resetPlayerBar();
       }
-
-      // total duration timecode
       document.getElementById('timecode').textContent = formatTimecode(tot);
     }
 
-    // ─── PIXEL ↔ TIME HELPERS ─────────────────────────────────────────────────
+    function makeClipEl(clip, width, globalTimeStart, isV2) {
+      const isActive = state.selectedClip?.id === clip.id;
+      const el = document.createElement('div');
+      el.className = 'tl-clip'
+        + (isActive ? ' active' : '')
+        + (isV2     ? ' track-v2' : '');
+      el.style.width = width + 'px';
+      el.dataset.clipId = clip.id;
+      el.innerHTML = `
+        <div class="trim-handle left"></div>
+        <div class="tl-clip-name">${clip.name}</div>
+        <div class="tl-clip-duration">${formatTime(clip.trimEnd - clip.trimStart)}</div>
+        ${isV2 ? '<div class="tl-clip-track-badge">B-ROLL</div>' : ''}
+        ${clip.noiseReduction ? `<div class="tl-clip-denoise-badge">${clip.noiseProfile ? '🎙 LEARNED' : '🎙 DENOISE'}</div>` : ''}
+        <canvas class="tl-clip-waveform ${clip.waveformPeaks ? '' : 'loading'}" data-clip-id="${clip.id}" height="48"></canvas>
+        <div class="trim-handle right"></div>
+      `;
+      requestAnimationFrame(() => {
+        const canvas = el.querySelector('.tl-clip-waveform');
+        if (canvas) renderWaveformToCanvas(canvas, clip.waveformPeaks || null, clip.waveformPeaksMin || null, isActive);
+      });
+
+      el.addEventListener('mousedown', e => {
+        if (e.target.classList.contains('trim-handle')) return;
+        e.preventDefault();
+        if (handMode) return; // hand tool pans — don't seek/select
+        if (e.altKey) {
+          startTrackDrag(e, clip, el);
+        } else {
+          startTrackInteraction(e, clip, globalTimeStart);
+        }
+      });
+
+      // Drag-to-track: also support long-press without modifier on V1 clips
+      el.addEventListener('mousedown', e => {
+        if (e.target.classList.contains('trim-handle')) return;
+        if (e.altKey) return; // handled above
+        let dragTimer = setTimeout(() => startTrackDrag(e, clip, el), 400);
+        const cancel  = () => clearTimeout(dragTimer);
+        el.addEventListener('mousemove', cancel, { once: true });
+        el.addEventListener('mouseup',   cancel, { once: true });
+      });
+
+      return el;
+    }
+
+    // ─── DRAG CLIP BETWEEN TRACKS ─────────────────────────────────────────────
+    // Hold Alt (or long-press) on any clip to drag it to V2 (B-roll track) or back to V1.
+    function startTrackDrag(e, clip, clipEl) {
+      e.stopPropagation();
+      const rowV2   = document.getElementById('tlRowV2');
+      const rowV1   = document.getElementById('tlRowV1');
+      const track   = document.getElementById('timelineTrack');
+      const SCALE   = state.timelineScale;
+      const PADDING = 40;
+
+      // Ghost clone follows the cursor
+      const ghost = clipEl.cloneNode(true);
+      ghost.style.cssText = `position:fixed;pointer-events:none;opacity:0.7;z-index:999;width:${clipEl.offsetWidth}px;height:${clipEl.offsetHeight}px;`;
+      document.body.appendChild(ghost);
+      clipEl.classList.add('dragging-track');
+
+      let targetTrack = clip.track === 2 ? 2 : 1;
+
+      function onMove(ev) {
+        ghost.style.left = (ev.clientX - clipEl.offsetWidth / 2) + 'px';
+        ghost.style.top  = (ev.clientY - clipEl.offsetHeight / 2) + 'px';
+
+        const v2Rect  = rowV2.getBoundingClientRect();
+        const v1Rect  = rowV1.getBoundingClientRect();
+        const overV2  = ev.clientY >= v2Rect.top && ev.clientY <= v2Rect.bottom;
+        const overV1  = ev.clientY >= v1Rect.top && ev.clientY <= v1Rect.bottom;
+
+        rowV2.classList.toggle('drag-over', overV2);
+        rowV1.classList.toggle('drag-over', overV1);
+        targetTrack = overV2 ? 2 : 1;
+      }
+
+      function onUp(ev) {
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup',   onUp);
+        ghost.remove();
+        clipEl.classList.remove('dragging-track');
+        rowV2.classList.remove('drag-over');
+        rowV1.classList.remove('drag-over');
+
+        if (targetTrack === clip.track) return; // no change
+
+        pushHistory();
+        if (targetTrack === 2) {
+          // Place on V2 at the time position under the drop point
+          const trackRect    = document.getElementById('timelineTrack').getBoundingClientRect();
+          const dropX        = ev.clientX - trackRect.left;
+          const dropTimeSec  = Math.max(0, (dropX - PADDING) / SCALE);
+          clip.track         = 2;
+          clip.trackStartTime = dropTimeSec;
+        } else {
+          // Return to V1 — append to end (user can reorder with Move buttons)
+          clip.track         = null;
+          clip.trackStartTime = null;
+        }
+
+        renderTimeline();
+        renderClipList();
+        scheduleProjectSave();
+        showToast(targetTrack === 2 ? '🎬 Moved to B-roll track (V2)' : '🎬 Moved back to main track (V1)', 'info');
+      }
+
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup',   onUp);
+    }
+
+
     function trackXToGlobalTime(px) {
       if (!clipLayout.length) return 0;
       for (const entry of clipLayout) {
@@ -2669,9 +2849,9 @@
     }
 
     function trackXFromMouseEvent(e) {
-      const track = document.getElementById('timelineTrack');
-      const rect = track.getBoundingClientRect();
-      return e.clientX - rect.left;
+      const row = document.getElementById('tlRowV1');
+      const rect = row.getBoundingClientRect();
+      return e.clientX - rect.left + 40; // +40 to account for label offset
     }
 
     function clipAtGlobalTime(t) {
@@ -2756,7 +2936,42 @@
       dragState = null;
     }
 
-    // Also allow starting a drag from the empty track area (between clips)
+    // ─── HAND / PAN TOOL ─────────────────────────────────────────────────────
+    let handMode = false;
+
+    function toggleHandTool(force) {
+      handMode = force !== undefined ? force : !handMode;
+      const btn    = document.getElementById('handToolBtn');
+      const scroll = document.getElementById('timelineScroll');
+      btn.classList.toggle('active', handMode);
+      scroll.classList.toggle('hand-mode', handMode);
+    }
+
+    // Intercept all timeline mousedown events when hand mode is on
+    document.getElementById('timelineScroll').addEventListener('mousedown', (e) => {
+      if (!handMode) return;
+      e.preventDefault();
+      e.stopPropagation();
+
+      const scroll   = document.getElementById('timelineScroll');
+      const startX   = e.clientX;
+      const startScroll = scroll.scrollLeft;
+      scroll.classList.add('panning');
+
+      function onPanMove(ev) {
+        const dx = ev.clientX - startX;
+        scroll.scrollLeft = startScroll - dx;
+      }
+      function onPanUp() {
+        scroll.classList.remove('panning');
+        document.removeEventListener('mousemove', onPanMove);
+        document.removeEventListener('mouseup',   onPanUp);
+      }
+      document.addEventListener('mousemove', onPanMove);
+      document.addEventListener('mouseup',   onPanUp);
+    }, true); // capture phase so it fires before clip handlers
+
+    // Also allow clicking on empty track area (between clips)
     document.getElementById('timelineTrack').addEventListener('mousedown', (e) => {
       if (e.target.id !== 'timelineTrack') return;
       if (!clipLayout.length) return;
@@ -2939,17 +3154,16 @@
 
     function positionPlayhead(globalTime) {
       const ph = document.getElementById('playhead');
-      if (!clipLayout.length) return;
+      const v1Layout = clipLayout.filter(e => e.track !== 2);
+      if (!v1Layout.length) return;
 
-      // Find which clip this time falls in
-      let px = 16; // default: left padding
-      for (const entry of clipLayout) {
+      let px = 40; // default: label width
+      for (const entry of v1Layout) {
         if (globalTime >= entry.globalTimeStart && globalTime <= entry.globalTimeStart + entry.duration) {
           const fraction = (globalTime - entry.globalTimeStart) / entry.duration;
           px = entry.pixelStart + fraction * entry.pixelWidth;
           break;
         }
-        // Past the end of this clip
         if (globalTime > entry.globalTimeStart + entry.duration) {
           px = entry.pixelStart + entry.pixelWidth;
         }
@@ -3680,18 +3894,24 @@
     }
 
     function rebuildClipLayout() {
-      const SCALE = state.timelineScale;
-      const PADDING = 16;
-      const GAP = 4;
-      clipLayout = [];
-      let cursorPx = PADDING;
+      const SCALE   = state.timelineScale;
+      const PADDING = 40;
+      const GAP     = 4;
+      clipLayout    = [];
+      let cursorPx   = PADDING;
       let globalTime = 0;
-      state.clips.forEach(clip => {
+      state.clips.filter(c => !c.track).forEach(clip => {
         const duration = clip.trimEnd - clip.trimStart;
-        const width = Math.max(duration * SCALE, 90);
-        clipLayout.push({ clip, pixelStart: cursorPx, pixelWidth: width, globalTimeStart: globalTime, duration });
-        cursorPx += width + GAP;
+        const width    = Math.max(duration * SCALE, 90);
+        clipLayout.push({ clip, pixelStart: cursorPx, pixelWidth: width, globalTimeStart: globalTime, duration, track: 1 });
+        cursorPx  += width + GAP;
         globalTime += duration;
+      });
+      state.clips.filter(c => c.track === 2).forEach(clip => {
+        const duration = clip.trimEnd - clip.trimStart;
+        const width    = Math.max(duration * SCALE, 90);
+        const leftPx   = PADDING + (clip.trackStartTime || 0) * SCALE;
+        clipLayout.push({ clip, pixelStart: leftPx, pixelWidth: width, globalTimeStart: clip.trackStartTime || 0, duration, track: 2 });
       });
     }
 
@@ -3728,6 +3948,11 @@
         case ' ':
           e.preventDefault();
           playPreview();
+          break;
+        case 'h':
+        case 'H':
+          e.preventDefault();
+          toggleHandTool();
           break;
         case 't':
         case 'T':
