@@ -2979,25 +2979,66 @@
       } catch (err) {
         hideProgress();
         console.error(err);
-        showToast('❌ Export failed: ' + (err.message || err), 'error');
+        let msg;
+        if (err.message?.includes('SharedArrayBuffer')) {
+          msg = '❌ Export requires a local server. Open this file with VS Code Live Server or similar.';
+        } else if (err.message?.includes('CDN') || err.message?.includes('fetch') || err.message?.includes('Failed to fetch')) {
+          msg = '❌ Could not load FFmpeg — check your internet connection and try again';
+        } else {
+          msg = '❌ Export failed: ' + (err.message || err);
+        }
+        showToast(msg, 'error');
       }
     }
 
     async function loadFFmpeg() {
       if (state.ffmpegLoaded) return;
+
+      // FFmpeg.wasm requires SharedArrayBuffer (needs COOP/COEP headers)
+      if (typeof SharedArrayBuffer === 'undefined') {
+        throw new Error(
+          'FFmpeg requires SharedArrayBuffer, which is not available in this context. ' +
+          'Try opening this file via a local server (e.g. VS Code Live Server) rather than directly from disk.'
+        );
+      }
+
       showProgress('Loading FFmpeg (first time may take ~30s)...', 10);
 
-      const { createFFmpeg, fetchFile } = await import('https://unpkg.com/@ffmpeg/ffmpeg@0.11.6/dist/ffmpeg.esm.js');
-      ffmpeg = createFFmpeg({
-        log: true,
-        progress: ({ ratio }) => {
-          const pct = Math.round(10 + ratio * 80);
-          showProgress('Processing video...', pct);
+      // Try multiple CDNs — both module AND core must come from the same CDN
+      const CDNS = [
+        {
+          esm:  'https://unpkg.com/@ffmpeg/ffmpeg@0.11.6/dist/ffmpeg.esm.js',
+          core: 'https://unpkg.com/@ffmpeg/core@0.11.0/dist/ffmpeg-core.js',
+        },
+        {
+          esm:  'https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.11.6/dist/ffmpeg.esm.js',
+          core: 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.11.0/dist/ffmpeg-core.js',
+        },
+      ];
+
+      let lastErr;
+      for (const cdn of CDNS) {
+        try {
+          const { createFFmpeg, fetchFile } = await import(cdn.esm);
+          ffmpeg = createFFmpeg({
+            log: true,
+            corePath: cdn.core,
+            progress: ({ ratio }) => {
+              const pct = Math.round(10 + ratio * 80);
+              showProgress('Processing video...', pct);
+            }
+          });
+          await ffmpeg.load();
+          state.ffmpegLoaded = true;
+          window._fetchFile = fetchFile;
+          return; // success
+        } catch (err) {
+          console.warn(`FFmpeg load failed (${cdn.esm}):`, err.message);
+          lastErr = err;
+          ffmpeg = null;
         }
-      });
-      await ffmpeg.load();
-      state.ffmpegLoaded = true;
-      window._fetchFile = fetchFile;
+      }
+      throw new Error('Could not load FFmpeg from any CDN. Last error: ' + lastErr?.message);
     }
 
     async function processVideos() {
