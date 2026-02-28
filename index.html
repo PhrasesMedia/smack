@@ -3,6 +3,10 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <!-- COI Service Worker: enables SharedArrayBuffer on GitHub Pages and other
+       hosts that don't send Cross-Origin-Isolation headers.
+       Required for FFmpeg.wasm to function. -->
+  <script src="https://unpkg.com/coi-serviceworker@0.1.7/coi-serviceworker.min.js"></script>
   <title>Smack! — Video Editor</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,wght@0,400;0,500;0,700;1,400&display=swap" rel="stylesheet" />
@@ -2981,7 +2985,7 @@
         console.error(err);
         let msg;
         if (err.message?.includes('SharedArrayBuffer')) {
-          msg = '❌ Export requires a local server. Open this file with VS Code Live Server or similar.';
+          msg = '❌ Please reload the page once — the export engine needs to activate first';
         } else if (err.message?.includes('CDN') || err.message?.includes('fetch') || err.message?.includes('Failed to fetch')) {
           msg = '❌ Could not load FFmpeg — check your internet connection and try again';
         } else {
@@ -2994,11 +2998,12 @@
     async function loadFFmpeg() {
       if (state.ffmpegLoaded) return;
 
-      // FFmpeg.wasm requires SharedArrayBuffer (needs COOP/COEP headers)
+      // FFmpeg.wasm requires SharedArrayBuffer (needs cross-origin isolation)
+      // coi-serviceworker.js handles this automatically on reload — if still missing,
+      // the browser may be blocking service workers entirely.
       if (typeof SharedArrayBuffer === 'undefined') {
         throw new Error(
-          'FFmpeg requires SharedArrayBuffer, which is not available in this context. ' +
-          'Try opening this file via a local server (e.g. VS Code Live Server) rather than directly from disk.'
+          'SharedArrayBuffer unavailable. Try reloading the page — the COI service worker activates on first load.'
         );
       }
 
